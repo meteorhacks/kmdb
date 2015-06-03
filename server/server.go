@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 
+	"github.com/glycerine/go-capnproto"
 	"github.com/meteorhacks/bddp"
 	"github.com/meteorhacks/kadira-metric-db"
 	"github.com/meteorhacks/kdb"
@@ -24,24 +26,21 @@ type Config struct {
 	// place to store data files
 	DataPath string `json:"dataPath"`
 
-	// number of partitions to divide indexes
-	Partitions int64 `json:"partitions"`
-
 	// depth of the index tree
 	IndexDepth int64 `json:"indexDepth"`
 
-	// maximum payload size in bytes
+	// payload size should always be equal to this amount
 	PayloadSize int64 `json:"payloadSize"`
 
-	// bucket duration in nano seconds
+	// time duration in nano seconds of a range unit
 	// this should be a multiple of `Resolution`
-	BucketDuration int64 `json:"bucketDuration"`
+	RangeNanos int64 `json:"rangeNanos"`
 
 	// bucket resolution in nano seconds
 	Resolution int64 `json:"resolution"`
 
-	// time duration of a segment
-	SegmentDuration int64 `json:"segmentDuration"`
+	// number of records per segment
+	SegmentSize int64 `json:"segmentSize"`
 
 	// address to listen for ddp traffic (host:port)
 	BDDPAddress string `json:"bddpAddress"`
@@ -58,20 +57,32 @@ type Server struct {
 }
 
 func main() {
-	config, err := readConfigFile()
+	fpath := flag.String("config", "", "configuration file (json)")
+	flag.Parse()
+
+	if *fpath == "" {
+		panic(ErrMissingConfigFilePath)
+	}
+
+	data, err := ioutil.ReadFile(*fpath)
+	if err != nil {
+		panic(err)
+	}
+
+	config = &Config{}
+	err = json.Unmarshal(data, config)
 	if err != nil {
 		panic(err)
 	}
 
 	db, err := kdb.NewDefaultDatabase(kdb.DefaultDatabaseOpts{
-		DatabaseName:    config.DatabaseName,
-		DataPath:        config.DataPath,
-		Partitions:      config.Partitions,
-		IndexDepth:      config.IndexDepth,
-		PayloadSize:     config.PayloadSize,
-		BucketDuration:  config.BucketDuration,
-		Resolution:      config.Resolution,
-		SegmentDuration: config.SegmentDuration,
+		DatabaseName: opts.DatabaseName,
+		DataPath:     opts.DataPath,
+		IndexDepth:   opts.IndexDepth,
+		PayloadSize:  opts.PayloadSize,
+		RangeNanos:   opts.RangeNanos,
+		Resolution:   opts.Resolution,
+		SegmentSize:  opts.SegmentSize,
 	})
 
 	if err != nil {
@@ -89,31 +100,14 @@ func main() {
 	}
 }
 
-func readConfigFile() (config *Config, err error) {
-	file := flag.String("config", "", "config JSON file")
-	flag.Parse()
-
-	if *file == "" {
-		return nil, ErrMissingConfigFilePath
-	}
-
-	data, err := ioutil.ReadFile(*file)
-	if err != nil {
-		return nil, err
-	}
-
-	config = &Config{}
-	err = json.Unmarshal(data, config)
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
-}
+//    Server
+// ------------
 
 func NewServer(opts ServerOpts) (s *Server) {
 	server := bddp.NewServer()
 	s = &Server{opts, server}
+
+	// method handlers
 	server.Method("put", s.handlePut)
 
 	return s
@@ -124,6 +118,9 @@ func (s *Server) Listen() (err error) {
 	return s.server.Listen(s.Address)
 }
 
+// Method = "put"
+// receives a `PutRequest` list and saves metrics 1 by 1
+// on success sends a `PutResult` with `ok` set to true
 func (s *Server) handlePut(ctx bddp.MethodContext) {
 	defer ctx.SendUpdated()
 
@@ -132,13 +129,12 @@ func (s *Server) handlePut(ctx bddp.MethodContext) {
 
 	for i := 0; i < count; i++ {
 		req := params.At(i)
-		pno := req.Partition()
 		ts := req.Timestamp()
 		vals := req.IndexVals().ToArray()
 		pld := req.Payload()
 
-		err := s.Database.Put(ts, pno, vals, pld)
-		if err != nil {
+		if err := s.Database.Put(ts, vals, pld); err != nil {
+			fmt.Println("Error: Method(put): ", err)
 			obj := bddp.NewError(ctx.Segment())
 			obj.SetError(err.Error())
 			ctx.SendError(&obj)
@@ -146,7 +142,10 @@ func (s *Server) handlePut(ctx bddp.MethodContext) {
 		}
 	}
 
-	// TODO: replace below
-	obj := ctx.Segment().NewText("")
+	seg := ctx.Segment()
+	res := kmdb.NewPutResult(seg)
+	res.SetOk(true)
+
+	obj := capn.Object(res)
 	ctx.SendResult(&obj)
 }

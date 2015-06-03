@@ -7,8 +7,11 @@ $Go.import("github.com/glycerine/go-capnproto/capnpc-go");
 using Id = UInt64;
 
 struct PutRequest {
-  partition @0 :Int64;
-  timestamp @1 :Int64;
-  indexVals @2 :List(Text);
-  payload @3 :Data;
+  timestamp @0 :Int64;
+  indexVals @1 :List(Text);
+  payload @2 :Data;
+}
+
+struct PutResult {
+  ok @0 :Bool;
 }
