@@ -15,13 +15,8 @@ import (
 
 const (
 	Address     = "localhost:3000"
-	Concurrency = 10
-	BatchSize   = 1000
-
-	NumApps  = 1000
-	NumTypes = 20
-	NumHosts = 5
-	NumData  = 10
+	Concurrency = 5
+	BatchSize   = 10000
 )
 
 var (
@@ -35,7 +30,7 @@ func main() {
 
 	for {
 		time.Sleep(time.Second)
-		fmt.Println(counter)
+		fmt.Println(counter * BatchSize)
 		counter = 0
 	}
 }
@@ -55,7 +50,7 @@ func StartWorker() {
 	}
 }
 
-func SendMetrics(c bddp.Client) (err error) {
+func SendMetrics(c bddp.Client) {
 	call := c.NewMethodCall("put")
 	seg := call.Segment()
 
@@ -66,10 +61,10 @@ func SendMetrics(c bddp.Client) (err error) {
 		ts := time.Now().UnixNano()
 
 		vals := seg.NewTextList(4)
-		vals.Set(0, "a"+strconv.Itoa(rand.Intn(NumApps)))
-		vals.Set(1, "t"+strconv.Itoa(rand.Intn(NumTypes)))
-		vals.Set(2, "h"+strconv.Itoa(rand.Intn(NumHosts)))
-		vals.Set(3, "d"+strconv.Itoa(rand.Intn(NumData)))
+		vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
+		vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
+		vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
+		vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
 
 		req.SetPayload(pld)
 		req.SetTimestamp(ts)
@@ -78,11 +73,9 @@ func SendMetrics(c bddp.Client) (err error) {
 	}
 
 	obj := capn.Object(params)
-	if _, err = call.Call(obj); err != nil {
-		return err
+	if _, err := call.Call(obj); err != nil {
+		fmt.Println(err)
 	}
 
 	atomic.AddInt64(&counter, 1)
-
-	return nil
 }

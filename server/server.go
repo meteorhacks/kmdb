@@ -12,10 +12,11 @@ import (
 	"github.com/meteorhacks/bddp"
 	"github.com/meteorhacks/kadira-metric-db"
 	"github.com/meteorhacks/kdb"
+	"github.com/meteorhacks/kdb/dbase"
 )
 
 var (
-	ErrMissingConfigFilePath = errors.New("config file path is missing")
+	ErrMissingConfig = errors.New("config file path is missing")
 )
 
 type Config struct {
@@ -34,7 +35,7 @@ type Config struct {
 
 	// time duration in nano seconds of a range unit
 	// this should be a multiple of `Resolution`
-	RangeNanos int64 `json:"rangeNanos"`
+	BucketDuration int64 `json:"bucketDuration"`
 
 	// bucket resolution in nano seconds
 	Resolution int64 `json:"resolution"`
@@ -61,7 +62,7 @@ func main() {
 	flag.Parse()
 
 	if *fpath == "" {
-		panic(ErrMissingConfigFilePath)
+		panic(ErrMissingConfig)
 	}
 
 	data, err := ioutil.ReadFile(*fpath)
@@ -69,20 +70,20 @@ func main() {
 		panic(err)
 	}
 
-	config = &Config{}
+	config := &Config{}
 	err = json.Unmarshal(data, config)
 	if err != nil {
 		panic(err)
 	}
 
-	db, err := kdb.NewDefaultDatabase(kdb.DefaultDatabaseOpts{
-		DatabaseName: opts.DatabaseName,
-		DataPath:     opts.DataPath,
-		IndexDepth:   opts.IndexDepth,
-		PayloadSize:  opts.PayloadSize,
-		RangeNanos:   opts.RangeNanos,
-		Resolution:   opts.Resolution,
-		SegmentSize:  opts.SegmentSize,
+	db, err := dbase.New(dbase.Options{
+		DatabaseName:   config.DatabaseName,
+		DataPath:       config.DataPath,
+		IndexDepth:     config.IndexDepth,
+		PayloadSize:    config.PayloadSize,
+		BucketDuration: config.BucketDuration,
+		Resolution:     config.Resolution,
+		SegmentSize:    config.SegmentSize,
 	})
 
 	if err != nil {

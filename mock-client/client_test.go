@@ -8,7 +8,7 @@ import (
 
 func BenchmarkPut(b *testing.B) {
 	// create a client and connect
-	c = bddp.NewClient()
+	c := bddp.NewClient()
 	if err := c.Connect(Address); err != nil {
 		panic(err)
 	}
@@ -16,7 +16,7 @@ func BenchmarkPut(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := SendMetric(c)
+		err := SendMetrics(c)
 		if err != nil {
 			b.Fatal(err)
 		}
