@@ -18,6 +18,7 @@ var (
 	address     *string
 	concurrency *int
 	batchsize   *int
+	duration    *int64
 
 	counter    = 0
 	counterMtx = &sync.Mutex{}
@@ -27,6 +28,7 @@ func main() {
 	address = flag.String("addr", "localhost:3000", "server address")
 	concurrency = flag.Int("c", 5, "number of connections to use")
 	batchsize = flag.Int("b", 10, "number requests to send per batch")
+	duration = flag.Int64("d", 3600000000000, "max test duration")
 	flag.Parse()
 
 	for i := 0; i < *concurrency; i++ {
@@ -65,7 +67,7 @@ func GetMetrics(c bddp.Client) {
 	params := proto.NewGetRequestList(seg, *batchsize)
 	for i := 0; i < *batchsize; i++ {
 		req := proto.NewGetRequest(seg)
-		end := time.Now().UnixNano()
+		end := time.Now().UnixNano() - rand.Int63n(*duration)
 		start := end - int64(time.Hour)
 
 		vals := seg.NewTextList(4)
