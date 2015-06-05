@@ -1,37 +1,45 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/glycerine/go-capnproto"
 	"github.com/meteorhacks/bddp"
-	"github.com/meteorhacks/kadira-metric-db"
-)
-
-const (
-	Address     = "localhost:3000"
-	Concurrency = 5
-	BatchSize   = 10000
+	"github.com/meteorhacks/kmdb/proto"
 )
 
 var (
-	counter int64 = 0
+	address     *string
+	concurrency *int
+	batchsize   *int
+
+	counter    = 0
+	counterMtx = &sync.Mutex{}
 )
 
 func main() {
-	for i := 0; i < Concurrency; i++ {
+	address = flag.String("addr", "localhost:3000", "server address")
+	concurrency = flag.Int("c", 5, "number of connections to use")
+	batchsize = flag.Int("b", 10000, "number requests to send per batch")
+	flag.Parse()
+
+	for i := 0; i < *concurrency; i++ {
 		go StartWorker()
 	}
 
 	for {
 		time.Sleep(time.Second)
-		fmt.Println(counter * BatchSize)
+		fmt.Println(*batchsize * counter)
+
+		counterMtx.Lock()
 		counter = 0
+		counterMtx.Unlock()
 	}
 }
 
@@ -40,8 +48,8 @@ func StartWorker() {
 	c := bddp.NewClient()
 
 	// connect to given address
-	if err := c.Connect(Address); err != nil {
-		fmt.Println("Error: could not connect to " + Address)
+	if err := c.Connect(*address); err != nil {
+		fmt.Println("Error: could not connect to " + *address)
 		os.Exit(1)
 	}
 
@@ -54,10 +62,10 @@ func SendMetrics(c bddp.Client) {
 	call := c.NewMethodCall("put")
 	seg := call.Segment()
 
-	params := kmdb.NewPutRequestList(seg, BatchSize)
-	for i := 0; i < BatchSize; i++ {
+	params := proto.NewPutRequestList(seg, *batchsize)
+	for i := 0; i < *batchsize; i++ {
 		pld := make([]byte, 16, 16)
-		req := kmdb.NewPutRequest(seg)
+		req := proto.NewPutRequest(seg)
 		ts := time.Now().UnixNano()
 
 		vals := seg.NewTextList(4)
@@ -67,8 +75,8 @@ func SendMetrics(c bddp.Client) {
 		vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
 
 		req.SetPayload(pld)
-		req.SetTimestamp(ts)
-		req.SetIndexVals(vals)
+		req.SetTime(ts)
+		req.SetValues(vals)
 		params.Set(i, req)
 	}
 
@@ -77,5 +85,7 @@ func SendMetrics(c bddp.Client) {
 		fmt.Println(err)
 	}
 
-	atomic.AddInt64(&counter, 1)
+	counterMtx.Lock()
+	counter++
+	counterMtx.Unlock()
 }

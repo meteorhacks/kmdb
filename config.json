@@ -6,5 +6,7 @@
   "bucketDuration": 3600000000000,
   "resolution": 60000000000,
   "segmentSize": 100000,
+
+  "debugMode": true,
   "bddpAddress": ":3000"
 }
