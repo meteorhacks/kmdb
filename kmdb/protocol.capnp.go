@@ -1,4 +1,4 @@
-package proto
+package kmdb
 
 // AUTO GENERATED - DO NOT EDIT
 

@@ -1,7 +1,7 @@
 using Go = import "../../../glycerine/go-capnproto/go.capnp";
 
 @0x97296a4ab461f129;
-$Go.package("proto");
+$Go.package("kmdb");
 $Go.import("github.com/glycerine/go-capnproto/capnpc-go");
 
 using Id = UInt64;
