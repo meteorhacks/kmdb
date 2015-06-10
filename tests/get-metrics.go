@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/glycerine/go-capnproto"
-	"github.com/meteorhacks/bddp"
+	"github.com/meteorhacks/bddp/client"
 	"github.com/meteorhacks/kmdb/proto"
 )
 
@@ -19,6 +19,7 @@ var (
 	concurrency *int
 	batchsize   *int
 	duration    *int64
+	indexFind   *bool
 
 	counter    = 0
 	counterMtx = &sync.Mutex{}
@@ -29,6 +30,8 @@ func main() {
 	concurrency = flag.Int("c", 5, "number of connections to use")
 	batchsize = flag.Int("b", 10, "number requests to send per batch")
 	duration = flag.Int64("d", 3600000000000, "max test duration")
+	indexFind = flag.Bool("f", true, "trigger a find on db index")
+
 	flag.Parse()
 
 	for i := 0; i < *concurrency; i++ {
@@ -37,7 +40,7 @@ func main() {
 
 	for {
 		time.Sleep(time.Second)
-		fmt.Println(*batchsize * counter)
+		log.Printf("%d/s\n", *batchsize*counter)
 
 		counterMtx.Lock()
 		counter = 0
@@ -47,11 +50,11 @@ func main() {
 
 func StartWorker() {
 	// create a new bddp client
-	c := bddp.NewClient()
+	c := client.New(*address)
 
 	// connect to given address
-	if err := c.Connect(*address); err != nil {
-		fmt.Println("Error: could not connect to " + *address)
+	if err := c.Connect(); err != nil {
+		log.Println("ERROR: could not connect to " + *address)
 		os.Exit(1)
 	}
 
@@ -60,8 +63,12 @@ func StartWorker() {
 	}
 }
 
-func GetMetrics(c bddp.Client) {
-	call := c.NewMethodCall("get")
+func GetMetrics(c client.Client) {
+	call, err := c.Method("get")
+	if err != nil {
+		return
+	}
+
 	seg := call.Segment()
 
 	params := proto.NewGetRequestList(seg, *batchsize)
@@ -74,7 +81,12 @@ func GetMetrics(c bddp.Client) {
 		vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
 		vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
 		vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
-		vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
+
+		if *indexFind {
+			vals.Set(3, "")
+		} else {
+			vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
+		}
 
 		req.SetValues(vals)
 		req.SetStart(start)
@@ -84,7 +96,7 @@ func GetMetrics(c bddp.Client) {
 
 	obj := capn.Object(params)
 	if _, err := call.Call(obj); err != nil {
-		fmt.Println(err)
+		log.Println("GET ERROR:", err)
 	}
 
 	counterMtx.Lock()

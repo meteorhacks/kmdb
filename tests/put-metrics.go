@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/glycerine/go-capnproto"
-	"github.com/meteorhacks/bddp"
+	"github.com/meteorhacks/bddp/client"
 	"github.com/meteorhacks/kmdb/proto"
 )
 
@@ -35,7 +35,7 @@ func main() {
 
 	for {
 		time.Sleep(time.Second)
-		fmt.Println(*batchsize * counter)
+		log.Printf("%d/s\n", *batchsize*counter)
 
 		counterMtx.Lock()
 		counter = 0
@@ -45,21 +45,25 @@ func main() {
 
 func StartWorker() {
 	// create a new bddp client
-	c := bddp.NewClient()
+	c := client.New(*address)
 
 	// connect to given address
-	if err := c.Connect(*address); err != nil {
-		fmt.Println("Error: could not connect to " + *address)
+	if err := c.Connect(); err != nil {
+		log.Println("ERROR: could not connect to " + *address)
 		os.Exit(1)
 	}
 
 	for {
-		SendMetrics(c)
+		PutMetrics(c)
 	}
 }
 
-func SendMetrics(c bddp.Client) {
-	call := c.NewMethodCall("put")
+func PutMetrics(c client.Client) {
+	call, err := c.Method("put")
+	if err != nil {
+		return
+	}
+
 	seg := call.Segment()
 
 	params := proto.NewPutRequestList(seg, *batchsize)
@@ -82,7 +86,7 @@ func SendMetrics(c bddp.Client) {
 
 	obj := capn.Object(params)
 	if _, err := call.Call(obj); err != nil {
-		fmt.Println(err)
+		log.Println("PUT ERROR:", err)
 	}
 
 	counterMtx.Lock()
