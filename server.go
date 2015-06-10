@@ -193,6 +193,7 @@ func (s *Server) handleGet(ctx server.MContext) {
 		if s.canUseGet(vals) {
 			data, err := s.Database.Get(start, end, vals)
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 
@@ -202,6 +203,7 @@ func (s *Server) handleGet(ctx server.MContext) {
 		} else {
 			dataMap, err := s.Database.Find(start, end, vals)
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 
