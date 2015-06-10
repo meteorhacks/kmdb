@@ -15,20 +15,26 @@ import (
 )
 
 var (
+	payload     []byte
 	address     *string
 	concurrency *int
 	batchsize   *int
+	randomize   *bool
 
 	counter    = 0
 	counterMtx = &sync.Mutex{}
 )
 
-func main() {
+func init() {
+	payload = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	address = flag.String("addr", "localhost:3000", "server address")
 	concurrency = flag.Int("c", 5, "number of connections to use")
 	batchsize = flag.Int("b", 10000, "number requests to send per batch")
+	randomize = flag.Bool("r", true, "randomize data fields")
 	flag.Parse()
+}
 
+func main() {
 	for i := 0; i < *concurrency; i++ {
 		go StartWorker()
 	}
@@ -68,17 +74,24 @@ func PutMetrics(c client.Client) {
 
 	params := proto.NewPutRequestList(seg, *batchsize)
 	for i := 0; i < *batchsize; i++ {
-		pld := make([]byte, 16, 16)
 		req := proto.NewPutRequest(seg)
 		ts := time.Now().UnixNano()
 
 		vals := seg.NewTextList(4)
-		vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
-		vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
-		vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
-		vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
 
-		req.SetPayload(pld)
+		if *randomize {
+			vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
+			vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
+			vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
+			vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
+		} else {
+			vals.Set(0, "a")
+			vals.Set(1, "b")
+			vals.Set(2, "c")
+			vals.Set(3, "d")
+		}
+
+		req.SetPayload(payload)
 		req.SetTime(ts)
 		req.SetValues(vals)
 		params.Set(i, req)

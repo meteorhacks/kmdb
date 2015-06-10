@@ -20,20 +20,23 @@ var (
 	batchsize   *int
 	duration    *int64
 	indexFind   *bool
+	randomize   *bool
 
 	counter    = 0
 	counterMtx = &sync.Mutex{}
 )
 
-func main() {
+func init() {
 	address = flag.String("addr", "localhost:3000", "server address")
 	concurrency = flag.Int("c", 5, "number of connections to use")
 	batchsize = flag.Int("b", 10, "number requests to send per batch")
 	duration = flag.Int64("d", 3600000000000, "max test duration")
 	indexFind = flag.Bool("f", true, "trigger a find on db index")
-
+	randomize = flag.Bool("r", true, "randomize data fields")
 	flag.Parse()
+}
 
+func main() {
 	for i := 0; i < *concurrency; i++ {
 		go StartWorker()
 	}
@@ -78,14 +81,23 @@ func GetMetrics(c client.Client) {
 		start := end - int64(time.Hour)
 
 		vals := seg.NewTextList(4)
-		vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
-		vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
-		vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
+
+		if *randomize {
+			vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
+			vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
+			vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
+		} else {
+			vals.Set(0, "a")
+			vals.Set(1, "b")
+			vals.Set(2, "c")
+		}
 
 		if *indexFind {
 			vals.Set(3, "")
-		} else {
+		} else if *randomize {
 			vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
+		} else {
+			vals.Set(3, "d")
 		}
 
 		req.SetValues(vals)
