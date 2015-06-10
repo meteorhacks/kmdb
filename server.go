@@ -9,6 +9,7 @@ import (
 
 	"github.com/glycerine/go-capnproto"
 	"github.com/meteorhacks/bddp"
+	"github.com/meteorhacks/bddp/server"
 	"github.com/meteorhacks/kdb"
 	"github.com/meteorhacks/kdb/dbase"
 	"github.com/meteorhacks/kmdb/proto"
@@ -54,7 +55,8 @@ type Config struct {
 
 type Server struct {
 	Database kdb.Database
-	server   bddp.Server
+	server   server.Server
+	config   *Config
 }
 
 func main() {
@@ -90,7 +92,7 @@ func main() {
 		panic(err)
 	}
 
-	s := NewServer(db)
+	s := NewServer(db, config)
 
 	// start a pprof server
 	go func() {
@@ -105,42 +107,49 @@ func main() {
 
 	// finally, start the bddp server on main
 	// app will exit if bddp server crashes
-	log.Println(s.Listen(config.BDDPAddress))
+	log.Println(s.Listen())
 }
 
 //    Server
 // ------------
 
-func NewServer(db kdb.Database) (s *Server) {
-	server := bddp.NewServer()
-	s = &Server{db, server}
+func NewServer(db kdb.Database, config *Config) (s *Server) {
+	srvr := server.New(config.BDDPAddress)
+	s = &Server{db, srvr, config}
 
 	// method handlers
-	server.Method("put", s.handlePut)
-	server.Method("get", s.handleGet)
+	srvr.Method("put", s.handlePut)
+	srvr.Method("get", s.handleGet)
 
 	return s
 }
 
-func (s *Server) Listen(address string) (err error) {
-	log.Println("BDDP:  listening on", address)
-	return s.server.Listen(address)
+func (s *Server) Listen() (err error) {
+	log.Println("BDDP:  listening on", s.config.BDDPAddress)
+	return s.server.Listen()
 }
 
 // Method = "put"
 // receives a `PutRequest` list and saves metrics 1 by 1
 // on success sends a `PutResult` with `ok` set to true
-func (s *Server) handlePut(ctx bddp.MethodContext) {
+func (s *Server) handlePut(ctx server.MContext) {
 	defer ctx.SendUpdated()
 
 	params := proto.PutRequest_List(*ctx.Params())
 	count := params.Len()
 
+	valsCount := int(s.config.IndexDepth)
+	vals := make([]string, valsCount, valsCount)
+
 	for i := 0; i < count; i++ {
 		req := params.At(i)
 		ts := req.Time()
-		vals := req.Values().ToArray()
 		pld := req.Payload()
+
+		vals := vals[:0]
+		for j := 0; j < valsCount; j++ {
+			vals = append(vals, req.Values().At(j))
+		}
 
 		if err := s.Database.Put(ts, vals, pld); err != nil {
 			s.methodError(ctx, err)
@@ -159,7 +168,7 @@ func (s *Server) handlePut(ctx bddp.MethodContext) {
 // Method = "get"
 // receives a `GetRequest` list and responds with a list of `GetResult`
 // uses either `db.Get()` or `db.Find()` to get data from the database
-func (s *Server) handleGet(ctx bddp.MethodContext) {
+func (s *Server) handleGet(ctx server.MContext) {
 	defer ctx.SendUpdated()
 
 	params := proto.GetRequest_List(*ctx.Params())
@@ -244,7 +253,7 @@ func (s *Server) makeResultItem(seg *capn.Segment, data [][]byte, vals []string)
 	return resItem
 }
 
-func (s *Server) methodError(ctx bddp.MethodContext, err error) {
+func (s *Server) methodError(ctx server.MContext, err error) {
 	log.Println("Error: Method("+ctx.Method()+"):", err)
 	obj := bddp.NewError(ctx.Segment())
 	obj.SetError(err.Error())
