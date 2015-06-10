@@ -9,13 +9,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/glycerine/go-capnproto"
-	"github.com/meteorhacks/bddp/client"
-	"github.com/meteorhacks/kmdb/proto"
+	"github.com/meteorhacks/kmdb/kmdb"
 )
 
 var (
-	payload     []byte
+	payload = []byte{
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		11, 12, 13, 14, 15, 16,
+	}
+
 	address     *string
 	concurrency *int
 	batchsize   *int
@@ -26,11 +28,10 @@ var (
 )
 
 func init() {
-	payload = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	address = flag.String("addr", "localhost:3000", "server address")
-	concurrency = flag.Int("c", 5, "number of connections to use")
-	batchsize = flag.Int("b", 10000, "number requests to send per batch")
-	randomize = flag.Bool("r", true, "randomize data fields")
+	address = flag.String("a", "localhost:3000", "address")
+	concurrency = flag.Int("c", 5, "concurrency")
+	batchsize = flag.Int("b", 10000, "requests per batch")
+	randomize = flag.Bool("r", true, "randomize fields")
 	flag.Parse()
 }
 
@@ -51,7 +52,7 @@ func main() {
 
 func StartWorker() {
 	// create a new bddp client
-	c := client.New(*address)
+	c := kmdb.NewClient(*address)
 
 	// connect to given address
 	if err := c.Connect(); err != nil {
@@ -60,49 +61,38 @@ func StartWorker() {
 	}
 
 	for {
-		PutMetrics(c)
-	}
-}
-
-func PutMetrics(c client.Client) {
-	call, err := c.Method("put")
-	if err != nil {
-		return
-	}
-
-	seg := call.Segment()
-
-	params := proto.NewPutRequestList(seg, *batchsize)
-	for i := 0; i < *batchsize; i++ {
-		req := proto.NewPutRequest(seg)
-		ts := time.Now().UnixNano()
-
-		vals := seg.NewTextList(4)
-
-		if *randomize {
-			vals.Set(0, "a"+strconv.Itoa(rand.Intn(1000)))
-			vals.Set(1, "b"+strconv.Itoa(rand.Intn(20)))
-			vals.Set(2, "c"+strconv.Itoa(rand.Intn(5)))
-			vals.Set(3, "d"+strconv.Itoa(rand.Intn(10)))
-		} else {
-			vals.Set(0, "a")
-			vals.Set(1, "b")
-			vals.Set(2, "c")
-			vals.Set(3, "d")
+		b, err := c.PutBatch(*batchsize)
+		if err != nil {
+			log.Println("PUT ERROR:", err)
+			continue
 		}
 
-		req.SetPayload(payload)
-		req.SetTime(ts)
-		req.SetValues(vals)
-		params.Set(i, req)
-	}
+		for i := 0; i < *batchsize; i++ {
+			ts := time.Now().UnixNano()
+			vals := make([]string, 4, 4)
 
-	obj := capn.Object(params)
-	if _, err := call.Call(obj); err != nil {
-		log.Println("PUT ERROR:", err)
-	}
+			if *randomize {
+				vals[0] = "a" + strconv.Itoa(rand.Intn(1000))
+				vals[1] = "b" + strconv.Itoa(rand.Intn(20))
+				vals[2] = "c" + strconv.Itoa(rand.Intn(5))
+				vals[3] = "d" + strconv.Itoa(rand.Intn(10))
+			} else {
+				vals[0] = "a"
+				vals[1] = "b"
+				vals[2] = "c"
+				vals[3] = "d"
+			}
 
-	counterMtx.Lock()
-	counter++
-	counterMtx.Unlock()
+			b.Set(i, ts, vals, payload)
+		}
+
+		if err = b.Send(); err != nil {
+			log.Println("PUT ERROR:", err)
+			continue
+		}
+
+		counterMtx.Lock()
+		counter++
+		counterMtx.Unlock()
+	}
 }

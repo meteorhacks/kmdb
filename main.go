@@ -29,7 +29,7 @@ func main() {
 		panic(err)
 	}
 
-	config := &kmdb.Config{}
+	config := &kmdb.ServerConfig{}
 	err = json.Unmarshal(data, config)
 	if err != nil {
 		panic(err)
@@ -65,13 +65,13 @@ func main() {
 }
 
 // TODO: validate config fields
-func validateConfig(config *kmdb.Config) (err error) {
+func validateConfig(config *kmdb.ServerConfig) (err error) {
 	return nil
 }
 
 // Listens on port localhost:6060 for pprof http requests
 // If debug mode is on, it will listen on all interfaces
-func startPPROF(config *kmdb.Config) {
+func startPPROF(config *kmdb.ServerConfig) {
 	addr := "localhost:6060"
 	if config.DebugMode {
 		addr = ":6060"
