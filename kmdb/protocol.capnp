@@ -7,9 +7,10 @@ $Go.import("github.com/glycerine/go-capnproto/capnpc-go");
 using Id = UInt64;
 
 struct PutRequest {
-  time @0 :Int64;
-  values @1 :List(Text);
-  payload @2 :Data;
+  db @0 :Text;
+  time @1 :Int64;
+  values @2 :List(Text);
+  payload @3 :Data;
 }
 
 struct PutResult {
@@ -17,9 +18,10 @@ struct PutResult {
 }
 
 struct GetRequest {
-  start @0 :Int64;
-  end @1 :Int64;
-  values @2 :List(Text);
+  db @0 :Text;
+  start @1 :Int64;
+  end @2 :Int64;
+  values @3 :List(Text);
 }
 
 struct GetResult {
