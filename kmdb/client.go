@@ -69,7 +69,7 @@ type PutBatch struct {
 	call bddp.MCall
 }
 
-func (b *PutBatch) Set(i int, ts int64, vals []string, pld []byte) (err error) {
+func (b *PutBatch) Set(db string, i int, ts int64, vals []string, pld []byte) (err error) {
 	seg := b.call.Segment()
 	req := NewPutRequest(seg)
 
@@ -79,6 +79,7 @@ func (b *PutBatch) Set(i int, ts int64, vals []string, pld []byte) (err error) {
 		valsList.Set(j, vals[j])
 	}
 
+	req.SetDb(db)
 	req.SetValues(valsList)
 	req.SetPayload(pld)
 	req.SetTime(ts)
@@ -101,7 +102,7 @@ type GetBatch struct {
 	call bddp.MCall
 }
 
-func (b *GetBatch) Set(i int, vals []string, start, end int64) (err error) {
+func (b *GetBatch) Set(db string, i int, vals []string, start, end int64) (err error) {
 	seg := b.call.Segment()
 	req := NewGetRequest(seg)
 
@@ -111,6 +112,7 @@ func (b *GetBatch) Set(i int, vals []string, start, end int64) (err error) {
 		valsList.Set(i, vals[i])
 	}
 
+	req.SetDb(db)
 	req.SetValues(valsList)
 	req.SetStart(start)
 	req.SetEnd(end)

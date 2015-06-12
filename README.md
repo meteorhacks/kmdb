@@ -8,16 +8,19 @@ Create a configuration JSON file with following fields. All fields are mandatory
 
 ```json
 {
-  "databaseName": "test",
-  "dataPath": "/tmp/test-db",
-  "indexDepth": 4,
-  "payloadSize": 16,
-  "bucketDuration": 3600000000000,
-  "resolution": 60000000000,
-  "segmentSize": 100000,
+    "remote_debug": true,
+    "bddp_address": ":3000",
 
-  "debugMode": true,
-  "bddpAddress": ":3000"
+    "databases": {
+        "test": {
+            "database_path": "/tmp/test-db",
+            "index_depth": 4,
+            "payload_size": 16,
+            "payload_resolution": 60000000000,
+            "bucket_duration": 3600000000000,
+            "segment_size": 100000
+        }
+    }
 }
 ```
 

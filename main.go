@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/meteorhacks/kdb"
 	"github.com/meteorhacks/kdb/dbase"
 	"github.com/meteorhacks/kmdb/kmdb"
 )
@@ -40,21 +41,27 @@ func main() {
 		panic(err)
 	}
 
-	db, err := dbase.New(dbase.Options{
-		DatabaseName:   config.DatabaseName,
-		DataPath:       config.DataPath,
-		IndexDepth:     config.IndexDepth,
-		PayloadSize:    config.PayloadSize,
-		BucketDuration: config.BucketDuration,
-		Resolution:     config.Resolution,
-		SegmentSize:    config.SegmentSize,
-	})
+	dbs := map[string]kdb.Database{}
 
-	if err != nil {
-		panic(err)
+	for name, config := range config.Databases {
+		db, err := dbase.New(dbase.Options{
+			DatabaseName:   config.DatabaseName,
+			DataPath:       config.DataPath,
+			IndexDepth:     config.IndexDepth,
+			PayloadSize:    config.PayloadSize,
+			BucketDuration: config.BucketDuration,
+			Resolution:     config.Resolution,
+			SegmentSize:    config.SegmentSize,
+		})
+
+		if err != nil {
+			panic(err)
+		}
+
+		dbs[name] = db
 	}
 
-	s := kmdb.NewServer(db, config)
+	s := kmdb.NewServer(dbs, config)
 
 	// start pprof server
 	go startPPROF(config)
@@ -73,7 +80,7 @@ func validateConfig(config *kmdb.ServerConfig) (err error) {
 // If debug mode is on, it will listen on all interfaces
 func startPPROF(config *kmdb.ServerConfig) {
 	addr := "localhost:6060"
-	if config.DebugMode {
+	if config.RemoteDebug {
 		addr = ":6060"
 	}
 

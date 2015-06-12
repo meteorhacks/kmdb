@@ -13,35 +13,39 @@ var (
 	ErrDBNotFound = errors.New("db not found")
 )
 
-type ServerConfig struct {
+type DatabaseConfig struct {
 	// database name. Currently only used with naming files
 	// can be useful when supporting multiple Databases
-	DatabaseName string `json:"databaseName"`
+	DatabaseName string `json:"database_name"`
 
 	// place to store data files
-	DataPath string `json:"dataPath"`
+	DataPath string `json:"database_path"`
 
 	// depth of the index tree
-	IndexDepth int64 `json:"indexDepth"`
+	IndexDepth int64 `json:"index_depth"`
 
 	// payload size should always be equal to this amount
-	PayloadSize int64 `json:"payloadSize"`
+	PayloadSize int64 `json:"payload_size"`
+
+	// bucket resolution in nano seconds
+	Resolution int64 `json:"payload_resolution"`
 
 	// time duration in nano seconds of a range unit
 	// this should be a multiple of `Resolution`
-	BucketDuration int64 `json:"bucketDuration"`
-
-	// bucket resolution in nano seconds
-	Resolution int64 `json:"resolution"`
+	BucketDuration int64 `json:"bucket_duration"`
 
 	// number of records per segment
-	SegmentSize int64 `json:"segmentSize"`
+	SegmentSize int64 `json:"segment_size"`
+}
 
+type ServerConfig struct {
 	// enable pprof on ":6060" instead of "localhost:6060".
-	DebugMode bool `json:"debugMode"`
+	RemoteDebug bool `json:"remote_debug"`
 
-	// address to listen for ddp traffic (host:port)
-	BDDPAddress string `json:"bddpAddress"`
+	// address to listen for bddp traffic (host:port)
+	BDDPAddress string `json:"bddp_address"`
+
+	Databases map[string]DatabaseConfig `json:"databases"`
 }
 
 //   Server
@@ -81,17 +85,16 @@ func (s *server) handlePut(ctx bddp.MContext) {
 	params := PutRequest_List(*ctx.Params())
 	pcount := params.Len()
 
-	vcount := int(s.IndexDepth)
-	vals := make([]string, vcount, vcount)
+	vals := []string{}
 	seg := ctx.Segment()
 
 	for i := 0; i < pcount; i++ {
 		req := params.At(i)
 
 		dbName := req.Db()
-		db, ok := s.dbs[dbName]
-		if !ok {
-			s.handleErr(ctx, ErrDBNotFound)
+		db, dbCfg, err := s.getDB(dbName)
+		if err != nil {
+			s.handleErr(ctx, err)
 			return
 		}
 
@@ -99,6 +102,8 @@ func (s *server) handlePut(ctx bddp.MContext) {
 		pld := req.Payload()
 
 		vals := vals[:0]
+
+		vcount := int(dbCfg.IndexDepth)
 		for j := 0; j < vcount; j++ {
 			vals = append(vals, req.Values().At(j))
 		}
@@ -125,8 +130,7 @@ func (s *server) handleGet(ctx bddp.MContext) {
 	params := GetRequest_List(*ctx.Params())
 	pcount := params.Len()
 
-	vcount := int(s.IndexDepth)
-	vals := make([]string, vcount, vcount)
+	vals := []string{}
 	seg := ctx.Segment()
 	ress := NewGetResultList(seg, pcount)
 
@@ -134,9 +138,9 @@ func (s *server) handleGet(ctx bddp.MContext) {
 		req := params.At(i)
 
 		dbName := req.Db()
-		db, ok := s.dbs[dbName]
-		if !ok {
-			s.handleErr(ctx, ErrDBNotFound)
+		db, dbCfg, err := s.getDB(dbName)
+		if err != nil {
+			s.handleErr(ctx, err)
 			return
 		}
 
@@ -145,6 +149,8 @@ func (s *server) handleGet(ctx bddp.MContext) {
 
 		vals := vals[:0]
 		gettable := true
+
+		vcount := int(dbCfg.IndexDepth)
 		for j := 0; j < vcount; j++ {
 			v := req.Values().At(j)
 			vals = append(vals, v)
@@ -204,6 +210,21 @@ func (s *server) handleErr(ctx bddp.MContext, err error) {
 	obj := bddp.NewError(ctx.Segment())
 	obj.SetError(err.Error())
 	ctx.SendError(&obj)
+}
+
+// Get database and database config
+func (s *server) getDB(name string) (db kdb.Database, cfg *DatabaseConfig, err error) {
+	db, ok := s.dbs[name]
+	if !ok {
+		return nil, nil, ErrDBNotFound
+	}
+
+	config, ok := s.Databases[name]
+	if !ok {
+		return nil, nil, ErrDBNotFound
+	}
+
+	return db, &config, nil
 }
 
 // Creates a ResultItem
