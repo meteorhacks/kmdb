@@ -45,7 +45,7 @@ func main() {
 
 	for name, config := range config.Databases {
 		db, err := dbase.New(dbase.Options{
-			DatabaseName:   config.DatabaseName,
+			DatabaseName:   name,
 			DataPath:       config.DataPath,
 			IndexDepth:     config.IndexDepth,
 			PayloadSize:    config.PayloadSize,
