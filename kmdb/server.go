@@ -1,11 +1,16 @@
 package kmdb
 
 import (
+	"errors"
 	"log"
 
 	"github.com/glycerine/go-capnproto"
 	"github.com/meteorhacks/bddp"
 	"github.com/meteorhacks/kdb"
+)
+
+var (
+	ErrDBNotFound = errors.New("db not found")
 )
 
 type ServerConfig struct {
@@ -48,13 +53,13 @@ type Server interface {
 
 type server struct {
 	*ServerConfig
-	db kdb.Database
-	bs bddp.Server
+	dbs map[string]kdb.Database
+	bs  bddp.Server
 }
 
-func NewServer(db kdb.Database, cfg *ServerConfig) (s Server) {
+func NewServer(dbs map[string]kdb.Database, cfg *ServerConfig) (s Server) {
 	bs := bddp.NewServer(cfg.BDDPAddress)
-	ss := &server{cfg, db, bs}
+	ss := &server{cfg, dbs, bs}
 
 	// method handlers
 	bs.Method("put", ss.handlePut)
@@ -82,6 +87,14 @@ func (s *server) handlePut(ctx bddp.MContext) {
 
 	for i := 0; i < pcount; i++ {
 		req := params.At(i)
+
+		dbName := req.Db()
+		db, ok := s.dbs[dbName]
+		if !ok {
+			s.handleErr(ctx, ErrDBNotFound)
+			return
+		}
+
 		ts := req.Time()
 		pld := req.Payload()
 
@@ -90,7 +103,7 @@ func (s *server) handlePut(ctx bddp.MContext) {
 			vals = append(vals, req.Values().At(j))
 		}
 
-		if err := s.db.Put(ts, vals, pld); err != nil {
+		if err := db.Put(ts, vals, pld); err != nil {
 			s.handleErr(ctx, err)
 			return
 		}
@@ -119,6 +132,14 @@ func (s *server) handleGet(ctx bddp.MContext) {
 
 	for i := 0; i < pcount; i++ {
 		req := params.At(i)
+
+		dbName := req.Db()
+		db, ok := s.dbs[dbName]
+		if !ok {
+			s.handleErr(ctx, ErrDBNotFound)
+			return
+		}
+
 		start := req.Start()
 		end := req.End()
 
@@ -138,17 +159,17 @@ func (s *server) handleGet(ctx bddp.MContext) {
 		// use the `Get` method only if all values are set
 		// otherwise use the more costly `Find` method
 		if gettable {
-			data, err := s.db.Get(start, end, vals)
+			data, err := db.Get(start, end, vals)
 			if err != nil {
 				s.handleErr(ctx, err)
 				return
 			}
 
 			items = NewResultItemList(seg, 1)
-			item := newResultItem(seg, data, vals)
+			item := s.newResultItem(seg, data, vals)
 			items.Set(0, *item)
 		} else {
-			dataMap, err := s.db.Find(start, end, vals)
+			dataMap, err := db.Find(start, end, vals)
 			if err != nil {
 				s.handleErr(ctx, err)
 				return
@@ -159,7 +180,7 @@ func (s *server) handleGet(ctx bddp.MContext) {
 
 			counter := 0
 			for el, data := range dataMap {
-				item := newResultItem(seg, data, el.Values)
+				item := s.newResultItem(seg, data, el.Values)
 				items.Set(counter, *item)
 				counter++
 			}
@@ -186,7 +207,7 @@ func (s *server) handleErr(ctx bddp.MContext, err error) {
 }
 
 // Creates a ResultItem
-func newResultItem(seg *capn.Segment, pld [][]byte, vals []string) (item *ResultItem) {
+func (s *server) newResultItem(seg *capn.Segment, pld [][]byte, vals []string) (item *ResultItem) {
 	itm := NewResultItem(seg)
 	item = &itm
 

@@ -70,14 +70,17 @@ func (db *MockDB) Reset() {
 // --------
 
 var (
-	db  *MockDB
+	dbs map[string]kdb.Database
 	cfg *ServerConfig
 	s   Server
 	c   Client
 )
 
+// Test Server
+// Start a test server with a mock database and use it for
+// tests performed later. Mock DB is reset before each test.
+
 func init() {
-	db = &MockDB{}
 	cfg = &ServerConfig{
 		DatabaseName:   "test",
 		DataPath:       "/tmp/test",
@@ -90,8 +93,15 @@ func init() {
 		BDDPAddress:    ":3000",
 	}
 
-	s = NewServer(db, cfg)
+	dbs = map[string]kdb.Database{
+		"test": &MockDB{},
+		"mock": &MockDB{},
+	}
+
+	s = NewServer(dbs, cfg)
 	go s.Listen()
+
+	// wait for the server to start
 	time.Sleep(time.Second * 2)
 
 	c = NewClient("localhost:3000")
@@ -101,11 +111,17 @@ func init() {
 	}
 }
 
+func Reset() {
+	for _, db := range dbs {
+		db.(*MockDB).Reset()
+	}
+}
+
 //   Tests
 // ---------
 
 func TestPut(t *testing.T) {
-	defer db.Reset()
+	defer Reset()
 
 	b, err := c.PutBatch(1)
 	if err != nil {
@@ -116,7 +132,7 @@ func TestPut(t *testing.T) {
 	vals := []string{"a", "b", "c", "d"}
 	pld := []byte{1, 2, 3, 4}
 
-	err = b.Set(0, ts, vals, pld)
+	err = b.Set("test", 0, ts, vals, pld)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +142,7 @@ func TestPut(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	db := dbs["test"].(*MockDB)
 	if db.put_ts != ts ||
 		!reflect.DeepEqual(db.put_vals, vals) ||
 		!reflect.DeepEqual(db.put_pld, pld) {
@@ -134,7 +151,7 @@ func TestPut(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	defer db.Reset()
+	defer Reset()
 
 	b, err := c.GetBatch(1)
 	if err != nil {
@@ -145,7 +162,7 @@ func TestGet(t *testing.T) {
 	var end int64 = 20
 	vals := []string{"a", "b", "c", "d"}
 
-	err = b.Set(0, vals, start, end)
+	err = b.Set("test", 0, vals, start, end)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +172,7 @@ func TestGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	db := dbs["test"].(*MockDB)
 	if db.get_start != start ||
 		db.get_end != end ||
 		!reflect.DeepEqual(db.get_vals, vals) {
@@ -163,7 +181,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
-	defer db.Reset()
+	defer Reset()
 
 	b, err := c.GetBatch(1)
 	if err != nil {
@@ -174,7 +192,7 @@ func TestFind(t *testing.T) {
 	var end int64 = 20
 	vals := []string{"a", "b", "c", ""}
 
-	err = b.Set(0, vals, start, end)
+	err = b.Set("test", 0, vals, start, end)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,6 +202,7 @@ func TestFind(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	db := dbs["test"].(*MockDB)
 	if db.find_start != start ||
 		db.find_end != end ||
 		!reflect.DeepEqual(db.find_vals, vals) {
