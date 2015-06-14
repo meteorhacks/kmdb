@@ -13,14 +13,12 @@ import (
 )
 
 var (
-	payload = []byte{
-		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-		11, 12, 13, 14, 15, 16,
-	}
-
+	dbname      *string
 	address     *string
 	concurrency *int
 	batchsize   *int
+	duration    *int64
+	indexFind   *bool
 	randomize   *bool
 
 	counter    = 0
@@ -28,9 +26,12 @@ var (
 )
 
 func init() {
+	dbname = flag.String("n", "test", "database name")
 	address = flag.String("a", "localhost:3000", "address")
 	concurrency = flag.Int("c", 5, "concurrency")
-	batchsize = flag.Int("b", 10000, "requests per batch")
+	batchsize = flag.Int("b", 10, "requests per batch")
+	duration = flag.Int64("d", 3600000000000, "time range")
+	indexFind = flag.Bool("f", true, "trigger a find on db")
 	randomize = flag.Bool("r", true, "randomize fields")
 	flag.Parse()
 }
@@ -61,33 +62,40 @@ func StartWorker() {
 	}
 
 	for {
-		b, err := c.PutBatch(*batchsize)
+		b, err := c.GetBatch(*batchsize)
 		if err != nil {
-			log.Println("PUT ERROR:", err)
+			log.Println("GET ERROR:", err)
 			continue
 		}
 
 		for i := 0; i < *batchsize; i++ {
-			ts := time.Now().UnixNano()
+			end := time.Now().UnixNano()
+			start := end - *duration
 			vals := make([]string, 4, 4)
 
 			if *randomize {
 				vals[0] = "a" + strconv.Itoa(rand.Intn(1000))
 				vals[1] = "b" + strconv.Itoa(rand.Intn(20))
 				vals[2] = "c" + strconv.Itoa(rand.Intn(5))
-				vals[3] = "d" + strconv.Itoa(rand.Intn(10))
 			} else {
 				vals[0] = "a"
 				vals[1] = "b"
 				vals[2] = "c"
+			}
+
+			if *indexFind {
+				vals[3] = ""
+			} else if *randomize {
+				vals[3] = "d" + strconv.Itoa(rand.Intn(10))
+			} else {
 				vals[3] = "d"
 			}
 
-			b.Set(i, ts, vals, payload)
+			b.Set(*dbname, i, vals, start, end)
 		}
 
 		if err = b.Send(); err != nil {
-			log.Println("PUT ERROR:", err)
+			log.Println("GET ERROR:", err)
 			continue
 		}
 
