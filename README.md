@@ -4,7 +4,7 @@ A database only good for storing metric data. KMDB is powered by [kdb](https://g
 
 ## Configuration
 
-Create a configuration JSON file with following fields. All fields are mandatory. When starting the server, use `kmdb -config /path/to/config.json` to use your settings. *Note: config file format will change significantly when multiple db support is implemented.*
+Create a configuration JSON file with following fields. All fields are mandatory. When starting the server, use `kmdb -config /path/to/config.json` to use your settings.
 
 ```json
 {
@@ -22,6 +22,19 @@ Create a configuration JSON file with following fields. All fields are mandatory
         }
     }
 }
+```
+
+## Docker
+
+KMDB uses memory mapping to increase write performance therefore for KMDB to work the `IPC_LOCK` linux capability must be enabled when running inside docker. This can be done easily by adding `--cap-add=IPC_LOCK` when starting the container.
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -v /data:/data \
+  -v /etc/kmdb.json:/etc/kmdb.json \
+  --cap-add=IPC_LOCK \
+  meteorhacks/kmdb
 ```
 
 ***
