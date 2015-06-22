@@ -21,6 +21,7 @@ var (
 	indexFind   *bool
 	randomize   *bool
 
+	groupBy    = []bool{true, true, true, true}
 	counter    = 0
 	counterMtx = &sync.Mutex{}
 )
@@ -71,30 +72,30 @@ func StartWorker() {
 		for i := 0; i < *batchsize; i++ {
 			end := time.Now().UnixNano()
 			start := end - *duration
-			vals := make([]string, 4, 4)
+			fields := make([]string, 4, 4)
 
 			if *randomize {
-				vals[0] = "a" + strconv.Itoa(rand.Intn(1000))
-				vals[1] = "b" + strconv.Itoa(rand.Intn(20))
-				vals[2] = "c" + strconv.Itoa(rand.Intn(5))
+				fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
+				fields[1] = "b" + strconv.Itoa(rand.Intn(20))
+				fields[2] = "c" + strconv.Itoa(rand.Intn(5))
 			} else {
-				vals[0] = "a"
-				vals[1] = "b"
-				vals[2] = "c"
+				fields[0] = "a"
+				fields[1] = "b"
+				fields[2] = "c"
 			}
 
 			if *indexFind {
-				vals[3] = ""
+				fields[3] = ""
 			} else if *randomize {
-				vals[3] = "d" + strconv.Itoa(rand.Intn(10))
+				fields[3] = "d" + strconv.Itoa(rand.Intn(10))
 			} else {
-				vals[3] = "d"
+				fields[3] = "d"
 			}
 
-			b.Set(*dbname, i, vals, start, end)
+			b.Set(i, *dbname, start, end, fields, groupBy)
 		}
 
-		if err = b.Send(); err != nil {
+		if _, err = b.Send(); err != nil {
 			log.Println("GET ERROR:", err)
 			continue
 		}

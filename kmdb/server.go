@@ -1,12 +1,18 @@
 package kmdb
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"log"
 
 	"github.com/glycerine/go-capnproto"
 	"github.com/meteorhacks/bddp"
 	"github.com/meteorhacks/kdb"
+)
+
+const (
+	PayloadSize = 16
 )
 
 var (
@@ -91,21 +97,20 @@ func (s *server) handlePut(ctx bddp.MContext) {
 	for i := 0; i < pcount; i++ {
 		req := params.At(i)
 
-		dbName := req.Db()
+		dbName := req.Database()
 		db, dbCfg, err := s.getDB(dbName)
 		if err != nil {
 			s.handleErr(ctx, err)
 			return
 		}
 
-		ts := req.Time()
-		pld := req.Payload()
+		ts := req.Timestamp()
+		pld := valToPld(req.Value(), req.Count())
 
 		vals := vals[:0]
-
 		vcount := int(dbCfg.IndexDepth)
 		for j := 0; j < vcount; j++ {
-			vals = append(vals, req.Values().At(j))
+			vals = append(vals, req.Fields().At(j))
 		}
 
 		if err := db.Put(ts, vals, pld); err != nil {
@@ -130,72 +135,61 @@ func (s *server) handleGet(ctx bddp.MContext) {
 	params := GetRequest_List(*ctx.Params())
 	pcount := params.Len()
 
-	vals := []string{}
+	fields := []string{}
+	groupBy := []bool{}
 	seg := ctx.Segment()
 	ress := NewGetResultList(seg, pcount)
 
 	for i := 0; i < pcount; i++ {
 		req := params.At(i)
 
-		dbName := req.Db()
+		dbName := req.Database()
 		db, dbCfg, err := s.getDB(dbName)
 		if err != nil {
 			s.handleErr(ctx, err)
 			return
 		}
 
-		start := req.Start()
-		end := req.End()
+		start := req.StartTime()
+		end := req.EndTime()
 
-		vals := vals[:0]
+		fields := fields[:0]
+		groupBy := groupBy[:0]
 		gettable := true
 
 		vcount := int(dbCfg.IndexDepth)
 		for j := 0; j < vcount; j++ {
-			v := req.Values().At(j)
-			vals = append(vals, v)
+			v := req.Fields().At(j)
+			fields = append(fields, v)
+
+			b := req.GroupBy().At(j)
+			groupBy = append(groupBy, b)
 
 			if v == "" {
 				gettable = false
 			}
 		}
 
-		var items ResultItem_List
+		var ss *seriess
 
 		// use the `Get` method only if all values are set
 		// otherwise use the more costly `Find` method
 		if gettable {
-			data, err := db.Get(start, end, vals)
-			if err != nil {
-				s.handleErr(ctx, err)
-				return
-			}
-
-			items = NewResultItemList(seg, 1)
-			item := s.newResultItem(seg, data, vals)
-			items.Set(0, *item)
+			ss, err = s.getData(db, start, end, fields, groupBy)
 		} else {
-			dataMap, err := db.Find(start, end, vals)
-			if err != nil {
-				s.handleErr(ctx, err)
-				return
-			}
-
-			numItems := len(dataMap)
-			items = NewResultItemList(seg, numItems)
-
-			counter := 0
-			for el, data := range dataMap {
-				item := s.newResultItem(seg, data, el.Values)
-				items.Set(counter, *item)
-				counter++
-			}
+			ss, err = s.findData(db, start, end, fields, groupBy)
 		}
 
+		if err != nil {
+			s.handleErr(ctx, err)
+			return
+		}
+
+		items := ss.toResult(seg)
 		res := NewGetResult(seg)
-		ress.Set(i, res)
 		res.SetOk(true)
 		res.SetData(items)
+		ress.Set(i, res)
 	}
 
 	obj := capn.Object(ress)
@@ -227,22 +221,173 @@ func (s *server) getDB(name string) (db kdb.Database, cfg *DatabaseConfig, err e
 	return db, &config, nil
 }
 
-// Creates a ResultItem
-func (s *server) newResultItem(seg *capn.Segment, pld [][]byte, vals []string) (item *ResultItem) {
-	itm := NewResultItem(seg)
-	item = &itm
-
-	dlist := seg.NewDataList(len(pld))
-	item.SetData(dlist)
-	for j, d := range pld {
-		dlist.Set(j, d)
+func (s *server) getData(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriess, err error) {
+	data, err := db.Get(start, end, fields)
+	if err != nil {
+		return nil, err
 	}
 
-	vlist := seg.NewTextList(len(vals))
-	item.SetValues(vlist)
-	for j, v := range vals {
-		vlist.Set(j, v)
+	ss = s.newSeriess(groupBy)
+
+	sr := s.newSeries(data, fields)
+	ss.add(sr)
+
+	return ss, nil
+}
+
+func (s *server) findData(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriess, err error) {
+	dataMap, err := db.Find(start, end, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	ss = s.newSeriess(groupBy)
+
+	for el, data := range dataMap {
+		sr := s.newSeries(data, el.Values)
+		ss.add(sr)
+	}
+
+	return ss, nil
+}
+
+func (s *server) newSeries(data [][]byte, fields []string) (sr *series) {
+	count := len(data)
+	points := make([]*point, count, count)
+
+	for i := 0; i < count; i++ {
+		val, num := pldToVal(data[i])
+		points[i] = &point{val, num}
+	}
+
+	return &series{fields, points, data}
+}
+
+func (s *server) newSeriess(groupBy []bool) (ss *seriess) {
+	return &seriess{make([]*series, 0, 1), groupBy}
+}
+
+func valToPld(val float64, num int64) (pld []byte) {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, val)
+	binary.Write(buf, binary.LittleEndian, num)
+	return buf.Bytes()
+}
+
+func pldToVal(pld []byte) (val float64, num int64) {
+	buf := bytes.NewBuffer(pld)
+	binary.Read(buf, binary.LittleEndian, &val)
+	binary.Read(buf, binary.LittleEndian, &num)
+	return val, num
+}
+
+// Helper structs for building get results
+
+type point struct {
+	value float64
+	count int64
+}
+
+func (p *point) add(q *point) {
+	p.value += q.value
+	p.count += q.count
+}
+
+func (p *point) toResult(seg *capn.Segment) (item *ResultPoint) {
+	itm := NewResultPoint(seg)
+	item = &itm
+	item.SetCount(p.count)
+	item.SetValue(p.value)
+	return item
+}
+
+type series struct {
+	fields []string
+	points []*point
+	data   [][]byte
+}
+
+func (sr *series) add(sn *series) {
+	count := len(sr.points)
+	for i := 0; i < count; i++ {
+		sr.points[i].add(sn.points[i])
+	}
+}
+
+func (sr *series) canMerge(sn *series) (can bool) {
+	count := len(sr.fields)
+	for i := 0; i < count; i++ {
+		if sr.fields[i] != sn.fields[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (sr *series) toResult(seg *capn.Segment) (item *ResultSeries) {
+	itm := NewResultSeries(seg)
+	item = &itm
+
+	count := len(sr.points)
+	points := NewResultPointList(seg, count)
+	item.SetPoints(points)
+	for j, p := range sr.points {
+		point := p.toResult(seg)
+		points.Set(j, *point)
+	}
+
+	fields := seg.NewTextList(len(sr.fields))
+	item.SetFields(fields)
+	for j, v := range sr.fields {
+		fields.Set(j, v)
 	}
 
 	return item
+}
+
+type seriess struct {
+	seriess []*series
+	groupBy []bool
+}
+
+func (ss *seriess) add(sn *series) {
+	ss.grpFields(sn)
+
+	count := len(ss.seriess)
+	for i := 0; i < count; i++ {
+		sr := ss.seriess[i]
+		if sr.canMerge(sn) {
+			sr.add(sn)
+			return
+		}
+	}
+
+	ss.seriess = append(ss.seriess, sn)
+}
+
+func (ss *seriess) grpFields(sn *series) {
+	count := len(sn.fields)
+	grouped := make([]string, count, count)
+
+	for i := 0; i < count; i++ {
+		if ss.groupBy[i] {
+			grouped[i] = sn.fields[i]
+		}
+	}
+
+	sn.fields = grouped
+}
+
+func (ss *seriess) toResult(seg *capn.Segment) (res ResultSeries_List) {
+	count := len(ss.seriess)
+	res = NewResultSeriesList(seg, count)
+
+	for i := 0; i < count; i++ {
+		sr := ss.seriess[i]
+		item := sr.toResult(seg)
+		res.Set(i, *item)
+	}
+
+	return res
 }

@@ -69,29 +69,22 @@ type PutBatch struct {
 	call bddp.MCall
 }
 
-func (b *PutBatch) Set(db string, i int, ts int64, vals []string, pld []byte) (err error) {
+func (b *PutBatch) Set(i int, db string, ts int64, fields []string, val float64, num int64) (err error) {
 	seg := b.call.Segment()
 	req := NewPutRequest(seg)
-
-	valsCount := len(vals)
-	valsList := seg.NewTextList(valsCount)
-	for j := 0; j < valsCount; j++ {
-		valsList.Set(j, vals[j])
-	}
-
-	req.SetDb(db)
-	req.SetValues(valsList)
-	req.SetPayload(pld)
-	req.SetTime(ts)
+	req.SetDatabase(db)
+	req.SetTimestamp(ts)
+	req.SetValue(val)
+	req.SetCount(num)
+	req.SetFields(toTextList(seg, fields))
 	b.reqs.Set(i, req)
 
 	return nil
 }
 
-func (b *PutBatch) Send() (err error) {
+func (b *PutBatch) Send() (res capn.Object, err error) {
 	params := capn.Object(b.reqs)
-	_, err = b.call.Call(params)
-	return err
+	return b.call.Call(params)
 }
 
 //   GetBatch
@@ -102,27 +95,45 @@ type GetBatch struct {
 	call bddp.MCall
 }
 
-func (b *GetBatch) Set(db string, i int, vals []string, start, end int64) (err error) {
+func (b *GetBatch) Set(i int, db string, start, end int64, fields []string, groupBy []bool) (err error) {
 	seg := b.call.Segment()
 	req := NewGetRequest(seg)
-
-	valsCount := len(vals)
-	valsList := seg.NewTextList(valsCount)
-	for i := 0; i < valsCount; i++ {
-		valsList.Set(i, vals[i])
-	}
-
-	req.SetDb(db)
-	req.SetValues(valsList)
-	req.SetStart(start)
-	req.SetEnd(end)
+	req.SetDatabase(db)
+	req.SetStartTime(start)
+	req.SetEndTime(end)
+	req.SetFields(toTextList(seg, fields))
+	req.SetGroupBy(toBitList(seg, groupBy))
 	b.reqs.Set(i, req)
 
 	return nil
 }
 
-func (b *GetBatch) Send() (err error) {
+func (b *GetBatch) Send() (res capn.Object, err error) {
 	params := capn.Object(b.reqs)
-	_, err = b.call.Call(params)
-	return err
+	return b.call.Call(params)
+}
+
+//   Cap'n Proto
+// ---------------
+
+func toTextList(seg *capn.Segment, vals []string) (list capn.TextList) {
+	count := len(vals)
+	list = seg.NewTextList(count)
+
+	for i := 0; i < count; i++ {
+		list.Set(i, vals[i])
+	}
+
+	return list
+}
+
+func toBitList(seg *capn.Segment, vals []bool) (list capn.BitList) {
+	count := len(vals)
+	list = seg.NewBitList(count)
+
+	for i := 0; i < count; i++ {
+		list.Set(i, vals[i])
+	}
+
+	return list
 }
