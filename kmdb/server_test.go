@@ -12,6 +12,8 @@ import (
 // ----------
 
 type MockDB struct {
+	resolution int64
+
 	put_ts   int64
 	put_vals []string
 	put_pld  []byte
@@ -36,14 +38,26 @@ func (db *MockDB) Get(start, end int64, vals []string) (res [][]byte, err error)
 	db.get_start = start
 	db.get_end = end
 	db.get_vals = vals
-	return nil, nil
+	count := int(end-start) / 10
+	res = makePayload(count, 1)
+	return res, nil
 }
 
 func (db *MockDB) Find(start, end int64, vals []string) (res map[*kdb.IndexElement][][]byte, err error) {
 	db.find_start = start
 	db.find_end = end
 	db.find_vals = vals
-	return nil, nil
+
+	count := int(end-start) / 10
+	res = make(map[*kdb.IndexElement][][]byte)
+
+	el1 := &kdb.IndexElement{Values: []string{"a", "b", "c", "d"}}
+	res[el1] = makePayload(count, 2)
+
+	el2 := &kdb.IndexElement{Values: []string{"a", "b", "c", "e"}}
+	res[el2] = makePayload(count, 3)
+
+	return res, nil
 }
 
 func (db *MockDB) RemoveBefore(ts int64) (err error) {
@@ -66,6 +80,15 @@ func (db *MockDB) Reset() {
 	db.find_vals = nil
 }
 
+func makePayload(count, mult int) (res [][]byte) {
+	res = make([][]byte, count, count)
+	for i := 0; i < count; i++ {
+		res[i] = valToPld(float64(mult*i*10), int64(mult*i))
+	}
+
+	return res
+}
+
 //   Init
 // --------
 
@@ -82,20 +105,33 @@ var (
 
 func init() {
 	cfg = &ServerConfig{
-		DatabaseName:   "test",
-		DataPath:       "/tmp/test",
-		IndexDepth:     4,
-		PayloadSize:    4,
-		BucketDuration: 3600000000000,
-		Resolution:     60000000000,
-		SegmentSize:    100000,
-		DebugMode:      true,
-		BDDPAddress:    ":3000",
+		RemoteDebug: true,
+		BDDPAddress: ":3000",
+		Databases: map[string]DatabaseConfig{
+			"test": DatabaseConfig{
+				DatabaseName:   "test",
+				DataPath:       "/tmp/test",
+				IndexDepth:     4,
+				PayloadSize:    16,
+				BucketDuration: 1000,
+				Resolution:     10,
+				SegmentSize:    100,
+			},
+			"mock": DatabaseConfig{
+				DatabaseName:   "mock",
+				DataPath:       "/tmp/mock",
+				IndexDepth:     4,
+				PayloadSize:    16,
+				BucketDuration: 1000,
+				Resolution:     10,
+				SegmentSize:    100,
+			},
+		},
 	}
 
 	dbs = map[string]kdb.Database{
-		"test": &MockDB{},
-		"mock": &MockDB{},
+		"test": &MockDB{resolution: 10},
+		"mock": &MockDB{resolution: 10},
 	}
 
 	s = NewServer(dbs, cfg)
@@ -130,14 +166,21 @@ func TestPut(t *testing.T) {
 
 	var ts int64 = 123
 	vals := []string{"a", "b", "c", "d"}
-	pld := []byte{1, 2, 3, 4}
 
-	err = b.Set("test", 0, ts, vals, pld)
+	val := 123.45
+	var num int64 = 67890
+
+	pld := []byte{
+		205, 204, 204, 204, 204, 220, 94, 64,
+		50, 9, 1, 0, 0, 0, 0, 0,
+	}
+
+	err = b.Set(0, "test", ts, vals, val, num)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = b.Send()
+	_, err = b.Send()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,18 +201,52 @@ func TestGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var start int64 = 10
-	var end int64 = 20
+	var start int64 = 100
+	var end int64 = 200
 	vals := []string{"a", "b", "c", "d"}
+	grup := []bool{true, true, false, true}
 
-	err = b.Set("test", 0, vals, start, end)
+	err = b.Set(0, "test", start, end, vals, grup)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = b.Send()
+	obj, err := b.Send()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	ress := GetResult_List(obj)
+	if ress.Len() != 1 {
+		t.Fatal(err)
+	}
+
+	res := ress.At(0)
+
+	ss := res.Data()
+	if ss.Len() != 1 {
+		t.Fatal(err)
+	}
+
+	sr := ss.At(0)
+	fields := sr.Fields().ToArray()
+	expFields := []string{"a", "b", "", "d"}
+	if !reflect.DeepEqual(fields, expFields) {
+		t.Fatal("incorrect fields")
+	}
+
+	points := sr.Points()
+	expPoints := makePayload(10, 1)
+	if points.Len() != 10 {
+		t.Fatal("incorrect points count")
+	}
+
+	for i := 0; i < 10; i++ {
+		rp := points.At(i)
+		val, num := pldToVal(expPoints[i])
+		if val != rp.Value() || num != rp.Count() {
+			t.Fatal("incorrect value")
+		}
 	}
 
 	db := dbs["test"].(*MockDB)
@@ -188,18 +265,52 @@ func TestFind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var start int64 = 10
-	var end int64 = 20
+	var start int64 = 100
+	var end int64 = 200
 	vals := []string{"a", "b", "c", ""}
+	grup := []bool{true, true, true, false}
 
-	err = b.Set("test", 0, vals, start, end)
+	err = b.Set(0, "test", start, end, vals, grup)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = b.Send()
+	obj, err := b.Send()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	ress := GetResult_List(obj)
+	if ress.Len() != 1 {
+		t.Fatal(err)
+	}
+
+	res := ress.At(0)
+
+	ss := res.Data()
+	if ss.Len() != 1 {
+		t.Fatal(err)
+	}
+
+	sr := ss.At(0)
+	fields := sr.Fields().ToArray()
+	expFields := []string{"a", "b", "c", ""}
+	if !reflect.DeepEqual(fields, expFields) {
+		t.Fatal("incorrect fields")
+	}
+
+	points := sr.Points()
+	expPoints := makePayload(10, 5)
+	if points.Len() != 10 {
+		t.Fatal("incorrect points count")
+	}
+
+	for i := 0; i < 10; i++ {
+		rp := points.At(i)
+		val, num := pldToVal(expPoints[i])
+		if val != rp.Value() || num != rp.Count() {
+			t.Fatal("incorrect value")
+		}
 	}
 
 	db := dbs["test"].(*MockDB)
