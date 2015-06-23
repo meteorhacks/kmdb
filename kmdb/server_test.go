@@ -83,7 +83,7 @@ func (db *MockDB) Reset() {
 func makePayload(count, mult int) (res [][]byte) {
 	res = make([][]byte, count, count)
 	for i := 0; i < count; i++ {
-		res[i] = valToPld(float64(mult*i*10), int64(mult*i))
+		res[i] = valToPld(float64(mult*(i+1)*10), int64(mult*(i+1)))
 	}
 
 	return res
@@ -169,10 +169,38 @@ func TestPut(t *testing.T) {
 
 	val := 123.45
 	var num int64 = 67890
+	pld := valToPld(val, num)
 
-	pld := []byte{
-		205, 204, 204, 204, 204, 220, 94, 64,
-		50, 9, 1, 0, 0, 0, 0, 0,
+	err = b.Set(0, "test", ts, vals, val, num)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = b.Send()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db := dbs["test"].(*MockDB)
+	if db.put_ts != ts ||
+		!reflect.DeepEqual(db.put_vals, vals) ||
+		!reflect.DeepEqual(db.put_pld, pld) {
+		t.Fatal("invalid value")
+	}
+}
+
+func TestInc(t *testing.T) {
+	defer Reset()
+
+	var ts int64 = 123
+	vals := []string{"a", "b", "c", "d"}
+
+	val := 123.0
+	var num int64 = 10
+
+	b, err := c.IncBatch(1)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	err = b.Set(0, "test", ts, vals, val, num)
@@ -184,6 +212,10 @@ func TestPut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// MockDB gives out (10,1) as first value
+	// it should be added with the new value
+	pld := valToPld(10.0+123.0, 10+1)
 
 	db := dbs["test"].(*MockDB)
 	if db.put_ts != ts ||
