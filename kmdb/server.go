@@ -73,6 +73,7 @@ func NewServer(dbs map[string]kdb.Database, cfg *ServerConfig) (s Server) {
 
 	// method handlers
 	bs.Method("put", ss.handlePut)
+	bs.Method("inc", ss.handleInc)
 	bs.Method("get", ss.handleGet)
 
 	return ss
@@ -120,6 +121,60 @@ func (s *server) handlePut(ctx bddp.MContext) {
 	}
 
 	res := NewPutResult(seg)
+	res.SetOk(true)
+
+	obj := capn.Object(res)
+	ctx.SendResult(&obj)
+}
+
+// Method = "inc"
+// receives a `IncRequest` list, goes through each metric,
+// read current values and increment them by given value
+// on success sends a `IncResult` with `ok` set to true
+func (s *server) handleInc(ctx bddp.MContext) {
+	defer ctx.SendUpdated()
+
+	params := IncRequest_List(*ctx.Params())
+	pcount := params.Len()
+
+	fields := []string{}
+	seg := ctx.Segment()
+
+	for i := 0; i < pcount; i++ {
+		req := params.At(i)
+
+		dbName := req.Database()
+		db, dbCfg, err := s.getDB(dbName)
+		if err != nil {
+			s.handleErr(ctx, err)
+			return
+		}
+
+		fields := fields[:0]
+		fcount := int(dbCfg.IndexDepth)
+		for j := 0; j < fcount; j++ {
+			fields = append(fields, req.Fields().At(j))
+		}
+
+		ts := req.Timestamp()
+		out, err := db.Get(ts, ts+dbCfg.Resolution, fields)
+		if err != nil {
+			s.handleErr(ctx, err)
+			return
+		}
+
+		val, num := pldToVal(out[0])
+		val += req.Value()
+		num += req.Count()
+		pld := valToPld(val, num)
+
+		if err := db.Put(ts, fields, pld); err != nil {
+			s.handleErr(ctx, err)
+			return
+		}
+	}
+
+	res := NewIncResult(seg)
 	res.SetOk(true)
 
 	obj := capn.Object(res)

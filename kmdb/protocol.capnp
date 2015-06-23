@@ -21,6 +21,21 @@ struct PutResult {
   ok @0 :Bool;
 }
 
+#   Inc
+# -------
+
+struct IncRequest {
+  database @0 :Text;
+  timestamp @1 :Int64;
+  fields @2 :List(Text);
+  value @3 :Float64;
+  count @4 :Int64;
+}
+
+struct IncResult {
+  ok @0 :Bool;
+}
+
 #   Get
 # -------
 

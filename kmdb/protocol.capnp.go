@@ -73,6 +73,72 @@ func (s PutResult_List) ToArray() []PutResult {
 }
 func (s PutResult_List) Set(i int, item PutResult) { C.PointerList(s).Set(i, C.Object(item)) }
 
+type IncRequest C.Struct
+
+func NewIncRequest(s *C.Segment) IncRequest      { return IncRequest(s.NewStruct(24, 2)) }
+func NewRootIncRequest(s *C.Segment) IncRequest  { return IncRequest(s.NewRootStruct(24, 2)) }
+func AutoNewIncRequest(s *C.Segment) IncRequest  { return IncRequest(s.NewStructAR(24, 2)) }
+func ReadRootIncRequest(s *C.Segment) IncRequest { return IncRequest(s.Root(0).ToStruct()) }
+func (s IncRequest) Database() string            { return C.Struct(s).GetObject(0).ToText() }
+func (s IncRequest) SetDatabase(v string)        { C.Struct(s).SetObject(0, s.Segment.NewText(v)) }
+func (s IncRequest) Timestamp() int64            { return int64(C.Struct(s).Get64(0)) }
+func (s IncRequest) SetTimestamp(v int64)        { C.Struct(s).Set64(0, uint64(v)) }
+func (s IncRequest) Fields() C.TextList          { return C.TextList(C.Struct(s).GetObject(1)) }
+func (s IncRequest) SetFields(v C.TextList)      { C.Struct(s).SetObject(1, C.Object(v)) }
+func (s IncRequest) Value() float64              { return math.Float64frombits(C.Struct(s).Get64(8)) }
+func (s IncRequest) SetValue(v float64)          { C.Struct(s).Set64(8, math.Float64bits(v)) }
+func (s IncRequest) Count() int64                { return int64(C.Struct(s).Get64(16)) }
+func (s IncRequest) SetCount(v int64)            { C.Struct(s).Set64(16, uint64(v)) }
+
+// capn.JSON_enabled == false so we stub MarshallJSON().
+func (s IncRequest) MarshalJSON() (bs []byte, err error) { return }
+
+type IncRequest_List C.PointerList
+
+func NewIncRequestList(s *C.Segment, sz int) IncRequest_List {
+	return IncRequest_List(s.NewCompositeList(24, 2, sz))
+}
+func (s IncRequest_List) Len() int            { return C.PointerList(s).Len() }
+func (s IncRequest_List) At(i int) IncRequest { return IncRequest(C.PointerList(s).At(i).ToStruct()) }
+func (s IncRequest_List) ToArray() []IncRequest {
+	n := s.Len()
+	a := make([]IncRequest, n)
+	for i := 0; i < n; i++ {
+		a[i] = s.At(i)
+	}
+	return a
+}
+func (s IncRequest_List) Set(i int, item IncRequest) { C.PointerList(s).Set(i, C.Object(item)) }
+
+type IncResult C.Struct
+
+func NewIncResult(s *C.Segment) IncResult      { return IncResult(s.NewStruct(8, 0)) }
+func NewRootIncResult(s *C.Segment) IncResult  { return IncResult(s.NewRootStruct(8, 0)) }
+func AutoNewIncResult(s *C.Segment) IncResult  { return IncResult(s.NewStructAR(8, 0)) }
+func ReadRootIncResult(s *C.Segment) IncResult { return IncResult(s.Root(0).ToStruct()) }
+func (s IncResult) Ok() bool                   { return C.Struct(s).Get1(0) }
+func (s IncResult) SetOk(v bool)               { C.Struct(s).Set1(0, v) }
+
+// capn.JSON_enabled == false so we stub MarshallJSON().
+func (s IncResult) MarshalJSON() (bs []byte, err error) { return }
+
+type IncResult_List C.PointerList
+
+func NewIncResultList(s *C.Segment, sz int) IncResult_List {
+	return IncResult_List(s.NewCompositeList(8, 0, sz))
+}
+func (s IncResult_List) Len() int           { return C.PointerList(s).Len() }
+func (s IncResult_List) At(i int) IncResult { return IncResult(C.PointerList(s).At(i).ToStruct()) }
+func (s IncResult_List) ToArray() []IncResult {
+	n := s.Len()
+	a := make([]IncResult, n)
+	for i := 0; i < n; i++ {
+		a[i] = s.At(i)
+	}
+	return a
+}
+func (s IncResult_List) Set(i int, item IncResult) { C.PointerList(s).Set(i, C.Object(item)) }
+
 type GetRequest C.Struct
 
 func NewGetRequest(s *C.Segment) GetRequest      { return GetRequest(s.NewStruct(16, 3)) }

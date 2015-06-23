@@ -11,6 +11,7 @@ import (
 type Client interface {
 	Connect() (err error)
 	PutBatch(sz int) (b *PutBatch, err error)
+	IncBatch(sz int) (b *IncBatch, err error)
 	GetBatch(sz int) (b *GetBatch, err error)
 }
 
@@ -37,6 +38,23 @@ func (c *client) PutBatch(sz int) (b *PutBatch, err error) {
 	reqs := NewPutRequestList(seg, sz)
 
 	b = &PutBatch{
+		reqs: reqs,
+		call: call,
+	}
+
+	return b, nil
+}
+
+func (c *client) IncBatch(sz int) (b *IncBatch, err error) {
+	call, err := c.bc.Method("inc")
+	if err != nil {
+		return nil, err
+	}
+
+	seg := call.Segment()
+	reqs := NewIncRequestList(seg, sz)
+
+	b = &IncBatch{
 		reqs: reqs,
 		call: call,
 	}
@@ -83,6 +101,32 @@ func (b *PutBatch) Set(i int, db string, ts int64, fields []string, val float64,
 }
 
 func (b *PutBatch) Send() (res capn.Object, err error) {
+	params := capn.Object(b.reqs)
+	return b.call.Call(params)
+}
+
+//   IncBatch
+// ------------
+
+type IncBatch struct {
+	reqs IncRequest_List
+	call bddp.MCall
+}
+
+func (b *IncBatch) Set(i int, db string, ts int64, fields []string, val float64, num int64) (err error) {
+	seg := b.call.Segment()
+	req := NewIncRequest(seg)
+	req.SetDatabase(db)
+	req.SetTimestamp(ts)
+	req.SetValue(val)
+	req.SetCount(num)
+	req.SetFields(toTextList(seg, fields))
+	b.reqs.Set(i, req)
+
+	return nil
+}
+
+func (b *IncBatch) Send() (res capn.Object, err error) {
 	params := capn.Object(b.reqs)
 	return b.call.Call(params)
 }
