@@ -1,183 +1,63 @@
 package kmdb
 
-import (
-	"github.com/glycerine/go-capnproto"
-	"github.com/meteorhacks/bddp"
-)
+import "git.apache.org/thrift.git/lib/go/thrift"
 
 //   Client
 // ----------
 
 type Client interface {
+	ThriftService
 	Connect() (err error)
-	PutBatch(sz int) (b *PutBatch, err error)
-	IncBatch(sz int) (b *IncBatch, err error)
-	GetBatch(sz int) (b *GetBatch, err error)
 }
 
 type client struct {
-	bc bddp.Client
+	addr string
+	svc  *ThriftServiceClient
 }
 
-func NewClient(address string) (c Client) {
-	bc := bddp.NewClient(address)
-	return &client{bc}
+func NewClient(addr string) (c Client) {
+	return &client{addr, nil}
 }
 
 func (c *client) Connect() (err error) {
-	return c.bc.Connect()
-}
+	// pfac := thrift.NewTBinaryProtocolFactoryDefault()
+	// pfac := thrift.NewTCompactProtocolFactory()
+	pfac := thrift.NewTJSONProtocolFactory()
 
-func (c *client) PutBatch(sz int) (b *PutBatch, err error) {
-	call, err := c.bc.Method("put")
+	trans, err := thrift.NewTSocket(c.addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	seg := call.Segment()
-	reqs := NewPutRequestList(seg, sz)
-
-	b = &PutBatch{
-		reqs: reqs,
-		call: call,
+	if err := trans.Open(); err != nil {
+		return err
 	}
 
-	return b, nil
-}
-
-func (c *client) IncBatch(sz int) (b *IncBatch, err error) {
-	call, err := c.bc.Method("inc")
-	if err != nil {
-		return nil, err
-	}
-
-	seg := call.Segment()
-	reqs := NewIncRequestList(seg, sz)
-
-	b = &IncBatch{
-		reqs: reqs,
-		call: call,
-	}
-
-	return b, nil
-}
-
-func (c *client) GetBatch(sz int) (b *GetBatch, err error) {
-	call, err := c.bc.Method("get")
-	if err != nil {
-		return nil, err
-	}
-
-	seg := call.Segment()
-	reqs := NewGetRequestList(seg, sz)
-
-	b = &GetBatch{
-		reqs: reqs,
-		call: call,
-	}
-
-	return b, nil
-}
-
-//   PutBatch
-// ------------
-
-type PutBatch struct {
-	reqs PutRequest_List
-	call bddp.MCall
-}
-
-func (b *PutBatch) Set(i int, db string, ts int64, fields []string, val float64, num int64) (err error) {
-	seg := b.call.Segment()
-	req := NewPutRequest(seg)
-	req.SetDatabase(db)
-	req.SetTimestamp(ts)
-	req.SetValue(val)
-	req.SetCount(num)
-	req.SetFields(toTextList(seg, fields))
-	b.reqs.Set(i, req)
+	c.svc = NewThriftServiceClientFactory(trans, pfac)
 
 	return nil
 }
 
-func (b *PutBatch) Send() (res capn.Object, err error) {
-	params := capn.Object(b.reqs)
-	return b.call.Call(params)
+func (c *client) Put(req *PutReq) (r *PutRes, err error) {
+	return c.svc.Put(req)
 }
 
-//   IncBatch
-// ------------
-
-type IncBatch struct {
-	reqs IncRequest_List
-	call bddp.MCall
+func (c *client) Inc(req *IncReq) (r *IncRes, err error) {
+	return c.svc.Inc(req)
 }
 
-func (b *IncBatch) Set(i int, db string, ts int64, fields []string, val float64, num int64) (err error) {
-	seg := b.call.Segment()
-	req := NewIncRequest(seg)
-	req.SetDatabase(db)
-	req.SetTimestamp(ts)
-	req.SetValue(val)
-	req.SetCount(num)
-	req.SetFields(toTextList(seg, fields))
-	b.reqs.Set(i, req)
-
-	return nil
+func (c *client) Get(req *GetReq) (r *GetRes, err error) {
+	return c.svc.Get(req)
 }
 
-func (b *IncBatch) Send() (res capn.Object, err error) {
-	params := capn.Object(b.reqs)
-	return b.call.Call(params)
+func (c *client) PutBatch(batch []*PutReq) (r []*PutRes, err error) {
+	return c.svc.PutBatch(batch)
 }
 
-//   GetBatch
-// ------------
-
-type GetBatch struct {
-	reqs GetRequest_List
-	call bddp.MCall
+func (c *client) IncBatch(batch []*IncReq) (r []*IncRes, err error) {
+	return c.svc.IncBatch(batch)
 }
 
-func (b *GetBatch) Set(i int, db string, start, end int64, fields []string, groupBy []bool) (err error) {
-	seg := b.call.Segment()
-	req := NewGetRequest(seg)
-	req.SetDatabase(db)
-	req.SetStartTime(start)
-	req.SetEndTime(end)
-	req.SetFields(toTextList(seg, fields))
-	req.SetGroupBy(toBitList(seg, groupBy))
-	b.reqs.Set(i, req)
-
-	return nil
-}
-
-func (b *GetBatch) Send() (res capn.Object, err error) {
-	params := capn.Object(b.reqs)
-	return b.call.Call(params)
-}
-
-//   Cap'n Proto
-// ---------------
-
-func toTextList(seg *capn.Segment, vals []string) (list capn.TextList) {
-	count := len(vals)
-	list = seg.NewTextList(count)
-
-	for i := 0; i < count; i++ {
-		list.Set(i, vals[i])
-	}
-
-	return list
-}
-
-func toBitList(seg *capn.Segment, vals []bool) (list capn.BitList) {
-	count := len(vals)
-	list = seg.NewBitList(count)
-
-	for i := 0; i < count; i++ {
-		list.Set(i, vals[i])
-	}
-
-	return list
+func (c *client) GetBatch(batch []*GetReq) (r []*GetRes, err error) {
+	return c.svc.GetBatch(batch)
 }

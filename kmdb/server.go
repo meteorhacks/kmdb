@@ -1,22 +1,14 @@
 package kmdb
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
 	"log"
 
-	"github.com/glycerine/go-capnproto"
-	"github.com/meteorhacks/bddp"
+	"git.apache.org/thrift.git/lib/go/thrift"
 	"github.com/meteorhacks/kdb"
 )
 
 const (
 	PayloadSize = 16
-)
-
-var (
-	ErrDBNotFound = errors.New("db not found")
 )
 
 type DatabaseConfig struct {
@@ -48,8 +40,8 @@ type ServerConfig struct {
 	// enable pprof on ":6060" instead of "localhost:6060".
 	RemoteDebug bool `json:"remote_debug"`
 
-	// address to listen for bddp traffic (host:port)
-	BDDPAddress string `json:"bddp_address"`
+	// address to listen for thrift traffic (host:port)
+	ThritAddress string `json:"thrift_address"`
 
 	Databases map[string]DatabaseConfig `json:"databases"`
 }
@@ -58,391 +50,106 @@ type ServerConfig struct {
 // ----------
 
 type Server interface {
+	ThriftService
 	Listen() (err error)
 }
 
 type server struct {
 	*ServerConfig
 	dbs map[string]kdb.Database
-	bs  bddp.Server
 }
 
 func NewServer(dbs map[string]kdb.Database, cfg *ServerConfig) (s Server) {
-	bs := bddp.NewServer(cfg.BDDPAddress)
-	ss := &server{cfg, dbs, bs}
-
-	// method handlers
-	bs.Method("put", ss.handlePut)
-	bs.Method("inc", ss.handleInc)
-	bs.Method("get", ss.handleGet)
-
+	ss := &server{cfg, dbs}
 	return ss
 }
 
 func (s *server) Listen() (err error) {
-	return s.bs.Listen()
-}
+	tfac := thrift.NewTTransportFactory()
+	// pfac := thrift.NewTBinaryProtocolFactoryDefault()
+	// pfac := thrift.NewTCompactProtocolFactory()
+	pfac := thrift.NewTJSONProtocolFactory()
 
-// Method = "put"
-// receives a `PutRequest` list and saves metrics 1 by 1
-// on success sends a `PutResult` with `ok` set to true
-func (s *server) handlePut(ctx bddp.MContext) {
-	defer ctx.SendUpdated()
-
-	params := PutRequest_List(*ctx.Params())
-	pcount := params.Len()
-
-	vals := []string{}
-	seg := ctx.Segment()
-
-	for i := 0; i < pcount; i++ {
-		req := params.At(i)
-
-		dbName := req.Database()
-		db, dbCfg, err := s.getDB(dbName)
-		if err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-
-		ts := req.Timestamp()
-		pld := valToPld(req.Value(), req.Count())
-
-		vals := vals[:0]
-		vcount := int(dbCfg.IndexDepth)
-		for j := 0; j < vcount; j++ {
-			vals = append(vals, req.Fields().At(j))
-		}
-
-		if err := db.Put(ts, vals, pld); err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-	}
-
-	res := NewPutResult(seg)
-	res.SetOk(true)
-
-	obj := capn.Object(res)
-	ctx.SendResult(&obj)
-}
-
-// Method = "inc"
-// receives a `IncRequest` list, goes through each metric,
-// read current values and increment them by given value
-// on success sends a `IncResult` with `ok` set to true
-func (s *server) handleInc(ctx bddp.MContext) {
-	defer ctx.SendUpdated()
-
-	params := IncRequest_List(*ctx.Params())
-	pcount := params.Len()
-
-	fields := []string{}
-	seg := ctx.Segment()
-
-	for i := 0; i < pcount; i++ {
-		req := params.At(i)
-
-		dbName := req.Database()
-		db, dbCfg, err := s.getDB(dbName)
-		if err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-
-		fields := fields[:0]
-		fcount := int(dbCfg.IndexDepth)
-		for j := 0; j < fcount; j++ {
-			fields = append(fields, req.Fields().At(j))
-		}
-
-		ts := req.Timestamp()
-		out, err := db.Get(ts, ts+dbCfg.Resolution, fields)
-		if err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-
-		val, num := pldToVal(out[0])
-		val += req.Value()
-		num += req.Count()
-		pld := valToPld(val, num)
-
-		if err := db.Put(ts, fields, pld); err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-	}
-
-	res := NewIncResult(seg)
-	res.SetOk(true)
-
-	obj := capn.Object(res)
-	ctx.SendResult(&obj)
-}
-
-// Method = "get"
-// receives a `GetRequest` list and responds with a list of `GetResult`
-// uses either `db.Get()` or `db.Find()` to get data from the database
-func (s *server) handleGet(ctx bddp.MContext) {
-	defer ctx.SendUpdated()
-
-	params := GetRequest_List(*ctx.Params())
-	pcount := params.Len()
-
-	fields := []string{}
-	groupBy := []bool{}
-	seg := ctx.Segment()
-	ress := NewGetResultList(seg, pcount)
-
-	for i := 0; i < pcount; i++ {
-		req := params.At(i)
-
-		dbName := req.Database()
-		db, dbCfg, err := s.getDB(dbName)
-		if err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-
-		start := req.StartTime()
-		end := req.EndTime()
-
-		fields := fields[:0]
-		groupBy := groupBy[:0]
-		gettable := true
-
-		vcount := int(dbCfg.IndexDepth)
-		for j := 0; j < vcount; j++ {
-			v := req.Fields().At(j)
-			fields = append(fields, v)
-
-			b := req.GroupBy().At(j)
-			groupBy = append(groupBy, b)
-
-			if v == "" {
-				gettable = false
-			}
-		}
-
-		var ss *seriess
-
-		// use the `Get` method only if all values are set
-		// otherwise use the more costly `Find` method
-		if gettable {
-			ss, err = s.getData(db, start, end, fields, groupBy)
-		} else {
-			ss, err = s.findData(db, start, end, fields, groupBy)
-		}
-
-		if err != nil {
-			s.handleErr(ctx, err)
-			return
-		}
-
-		items := ss.toResult(seg)
-		res := NewGetResult(seg)
-		res.SetOk(true)
-		res.SetData(items)
-		ress.Set(i, res)
-	}
-
-	obj := capn.Object(ress)
-	ctx.SendResult(&obj)
-}
-
-// Sends a method error
-// Converts a go error to a method error and send.
-// `handleErr` can be used by any method handlers.
-func (s *server) handleErr(ctx bddp.MContext, err error) {
-	log.Println("Error: Method("+ctx.Method()+"):", err)
-	obj := bddp.NewError(ctx.Segment())
-	obj.SetError(err.Error())
-	ctx.SendError(&obj)
-}
-
-// Get database and database config
-func (s *server) getDB(name string) (db kdb.Database, cfg *DatabaseConfig, err error) {
-	db, ok := s.dbs[name]
-	if !ok {
-		return nil, nil, ErrDBNotFound
-	}
-
-	config, ok := s.Databases[name]
-	if !ok {
-		return nil, nil, ErrDBNotFound
-	}
-
-	return db, &config, nil
-}
-
-func (s *server) getData(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriess, err error) {
-	data, err := db.Get(start, end, fields)
+	trans, err := thrift.NewTServerSocket(s.ThritAddress)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	ss = s.newSeriess(groupBy)
+	proc := NewThriftServiceProcessor(s)
+	server := thrift.NewTSimpleServer4(proc, trans, tfac, pfac)
 
-	sr := s.newSeries(data, fields)
-	ss.add(sr)
-
-	return ss, nil
+	log.Println("THRIFT: listening on", s.ThritAddress)
+	return server.Serve()
 }
 
-func (s *server) findData(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriess, err error) {
-	dataMap, err := db.Find(start, end, fields)
-	if err != nil {
-		return nil, err
-	}
-
-	ss = s.newSeriess(groupBy)
-
-	for el, data := range dataMap {
-		sr := s.newSeries(data, el.Values)
-		ss.add(sr)
-	}
-
-	return ss, nil
+func (s *server) Put(req *PutReq) (r *PutRes, err error) {
+	return s.put(req)
 }
 
-func (s *server) newSeries(data [][]byte, fields []string) (sr *series) {
-	count := len(data)
-	points := make([]*point, count, count)
-
-	for i := 0; i < count; i++ {
-		val, num := pldToVal(data[i])
-		points[i] = &point{val, num}
-	}
-
-	return &series{fields, points, data}
+func (s *server) Inc(req *IncReq) (r *IncRes, err error) {
+	return s.inc(req)
 }
 
-func (s *server) newSeriess(groupBy []bool) (ss *seriess) {
-	return &seriess{make([]*series, 0, 1), groupBy}
+func (s *server) Get(req *GetReq) (r *GetRes, err error) {
+	return s.get(req)
 }
 
-func valToPld(val float64, num int64) (pld []byte) {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, val)
-	binary.Write(buf, binary.LittleEndian, num)
-	return buf.Bytes()
-}
+func (s *server) PutBatch(batch []*PutReq) (r []*PutRes, berr error) {
+	n := len(batch)
+	r = make([]*PutRes, n, n)
+	var err error
 
-func pldToVal(pld []byte) (val float64, num int64) {
-	buf := bytes.NewBuffer(pld)
-	binary.Read(buf, binary.LittleEndian, &val)
-	binary.Read(buf, binary.LittleEndian, &num)
-	return val, num
-}
-
-// Helper structs for building get results
-
-type point struct {
-	value float64
-	count int64
-}
-
-func (p *point) add(q *point) {
-	p.value += q.value
-	p.count += q.count
-}
-
-func (p *point) toResult(seg *capn.Segment) (item *ResultPoint) {
-	itm := NewResultPoint(seg)
-	item = &itm
-	item.SetCount(p.count)
-	item.SetValue(p.value)
-	return item
-}
-
-type series struct {
-	fields []string
-	points []*point
-	data   [][]byte
-}
-
-func (sr *series) add(sn *series) {
-	count := len(sr.points)
-	for i := 0; i < count; i++ {
-		sr.points[i].add(sn.points[i])
-	}
-}
-
-func (sr *series) canMerge(sn *series) (can bool) {
-	count := len(sr.fields)
-	for i := 0; i < count; i++ {
-		if sr.fields[i] != sn.fields[i] {
-			return false
+	for i := 0; i < n; i++ {
+		r[i], err = s.put(batch[i])
+		if err != nil && berr == nil {
+			berr = ERR_BATCH_ERROR
 		}
 	}
 
-	return true
+	return r, berr
 }
 
-func (sr *series) toResult(seg *capn.Segment) (item *ResultSeries) {
-	itm := NewResultSeries(seg)
-	item = &itm
+func (s *server) IncBatch(batch []*IncReq) (r []*IncRes, berr error) {
+	n := len(batch)
+	r = make([]*IncRes, n, n)
+	var err error
 
-	count := len(sr.points)
-	points := NewResultPointList(seg, count)
-	item.SetPoints(points)
-	for j, p := range sr.points {
-		point := p.toResult(seg)
-		points.Set(j, *point)
-	}
-
-	fields := seg.NewTextList(len(sr.fields))
-	item.SetFields(fields)
-	for j, v := range sr.fields {
-		fields.Set(j, v)
-	}
-
-	return item
-}
-
-type seriess struct {
-	seriess []*series
-	groupBy []bool
-}
-
-func (ss *seriess) add(sn *series) {
-	ss.grpFields(sn)
-
-	count := len(ss.seriess)
-	for i := 0; i < count; i++ {
-		sr := ss.seriess[i]
-		if sr.canMerge(sn) {
-			sr.add(sn)
-			return
+	for i := 0; i < n; i++ {
+		r[i], err = s.inc(batch[i])
+		if err != nil && berr == nil {
+			berr = ERR_BATCH_ERROR
 		}
 	}
 
-	ss.seriess = append(ss.seriess, sn)
+	return r, berr
 }
 
-func (ss *seriess) grpFields(sn *series) {
-	count := len(sn.fields)
-	grouped := make([]string, count, count)
+func (s *server) GetBatch(batch []*GetReq) (r []*GetRes, berr error) {
+	n := len(batch)
+	r = make([]*GetRes, n, n)
+	var err error
 
-	for i := 0; i < count; i++ {
-		if ss.groupBy[i] {
-			grouped[i] = sn.fields[i]
+	for i := 0; i < n; i++ {
+		r[i], err = s.get(batch[i])
+		if err != nil && berr == nil {
+			berr = ERR_BATCH_ERROR
 		}
 	}
 
-	sn.fields = grouped
+	return r, berr
 }
 
-func (ss *seriess) toResult(seg *capn.Segment) (res ResultSeries_List) {
-	count := len(ss.seriess)
-	res = NewResultSeriesList(seg, count)
+func (s *server) put(req *PutReq) (r *PutRes, err error) {
+	r = NewPutRes()
+	return r, nil
+}
 
-	for i := 0; i < count; i++ {
-		sr := ss.seriess[i]
-		item := sr.toResult(seg)
-		res.Set(i, *item)
-	}
+func (s *server) inc(req *IncReq) (r *IncRes, err error) {
+	r = NewIncRes()
+	return r, nil
+}
 
-	return res
+func (s *server) get(req *GetReq) (r *GetRes, err error) {
+	r = NewGetRes()
+	return r, nil
 }

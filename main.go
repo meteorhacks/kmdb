@@ -84,6 +84,6 @@ func startPPROF(config *kmdb.ServerConfig) {
 		addr = ":6060"
 	}
 
-	log.Println("PPROF: listening on", addr)
+	log.Println("PPROF:  listening on", addr)
 	log.Println(http.ListenAndServe(addr, nil))
 }
