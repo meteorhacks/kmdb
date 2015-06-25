@@ -69,7 +69,7 @@ func StartWorker() {
 
 	for i := 0; i < *batchsize; i++ {
 		req := &kmdb.GetReq{}
-		req.Database = dbname
+		req.Database = *dbname
 		req.Fields = make([]string, 4, 4)
 		req.Fields[0] = "a"
 		req.Fields[1] = "b"
@@ -98,8 +98,8 @@ func StartWorker() {
 
 		for i := 0; i < *batchsize; i++ {
 			req := batch.Batch[i]
-			req.StartTime = &ts1
-			req.EndTime = &ts2
+			req.StartTime = ts1
+			req.EndTime = ts2
 
 			if *randomize {
 				req.Fields[0] = "a" + strconv.Itoa(rand.Intn(1000))

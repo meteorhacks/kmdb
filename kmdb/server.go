@@ -142,17 +142,13 @@ func (s *server) GetBatch(ctx context.Context, batch *GetReqBatch) (r *GetResBat
 func (s *server) put(req *PutReq) (r *PutRes, err error) {
 	r = &PutRes{}
 
-	dbName := req.GetDatabase()
-	db, _, err := s.getDB(dbName)
+	db, _, err := s.getDB(req.Database)
 	if err != nil {
 		return r, err
 	}
 
-	pld := valToPld(req.GetValue(), req.GetCount())
-
-	ts := req.GetTimestamp()
-	fields := req.GetFields()
-	if err := db.Put(ts, fields, pld); err != nil {
+	pld := valToPld(req.Value, req.Count)
+	if err := db.Put(req.Timestamp, req.Fields, pld); err != nil {
 		return r, err
 	}
 
@@ -162,26 +158,24 @@ func (s *server) put(req *PutReq) (r *PutRes, err error) {
 func (s *server) inc(req *IncReq) (r *IncRes, err error) {
 	r = &IncRes{}
 
-	dbName := req.GetDatabase()
-	db, dbCfg, err := s.getDB(dbName)
+	db, dbCfg, err := s.getDB(req.Database)
 	if err != nil {
 		return r, err
 	}
 
-	ts1 := req.GetTimestamp()
+	ts1 := req.Timestamp
 	ts2 := ts1 + dbCfg.Resolution
-	fields := req.GetFields()
-	out, err := db.Get(ts1, ts2, fields)
+	out, err := db.Get(ts1, ts2, req.Fields)
 	if err != nil {
 		return r, err
 	}
 
 	val, num := pldToVal(out[0])
-	val += req.GetValue()
-	num += req.GetCount()
+	val += req.Value
+	num += req.Count
 	pld := valToPld(val, num)
 
-	if err := db.Put(ts1, fields, pld); err != nil {
+	if err := db.Put(ts1, req.Fields, pld); err != nil {
 		return r, err
 	}
 
@@ -191,16 +185,15 @@ func (s *server) inc(req *IncReq) (r *IncRes, err error) {
 func (s *server) get(req *GetReq) (r *GetRes, err error) {
 	r = &GetRes{}
 
-	dbName := req.GetDatabase()
-	db, dbCfg, err := s.getDB(dbName)
+	db, dbCfg, err := s.getDB(req.Database)
 	if err != nil {
 		return r, err
 	}
 
-	ts1 := req.GetStartTime()
-	ts2 := req.GetEndTime()
-	fields := req.GetFields()
-	groupBy := req.GetGroupBy()
+	ts1 := req.StartTime
+	ts2 := req.EndTime
+	fields := req.Fields
+	groupBy := req.GroupBy
 
 	gettable := true
 	vcount := int(dbCfg.IndexDepth)
@@ -317,8 +310,8 @@ func (p *point) add(q *point) {
 
 func (p *point) toResult() (item *ResPoint) {
 	item = &ResPoint{}
-	item.Value = &p.value
-	item.Count = &p.count
+	item.Value = p.value
+	item.Count = p.count
 	return item
 }
 

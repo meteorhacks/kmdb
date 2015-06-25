@@ -1,14 +1,15 @@
+syntax = "proto3";
 package kmdb;
 
 //   Types
 // ---------
 
 message PutReq {
-  required string database = 1;
-  required int64 timestamp = 2;
-  repeated string fields = 3;
-  required double value = 4;
-  required int64 count = 5;
+  string database = 1;
+  int64 timestamp = 2;
+  double value = 3;
+  int64 count = 4;
+  repeated string fields = 5;
 }
 
 message PutReqBatch {
@@ -24,11 +25,11 @@ message PutResBatch {
 }
 
 message IncReq {
-  required string database = 1;
-  required int64 timestamp = 2;
-  repeated string fields = 3;
-  required double value = 4;
-  required int64 count = 5;
+  string database = 1;
+  int64 timestamp = 2;
+  double value = 3;
+  int64 count = 4;
+  repeated string fields = 5;
 }
 
 message IncReqBatch {
@@ -44,11 +45,11 @@ message IncResBatch {
 }
 
 message GetReq {
-  required string database = 1;
-  required int64 startTime = 2;
-  required int64 endTime = 3;
+  string database = 1;
+  int64 startTime = 2;
+  int64 endTime = 3;
   repeated string fields = 4;
-  repeated bool groupBy = 5;
+  repeated bool groupBy = 5 [packed=true];
 }
 
 message GetReqBatch {
@@ -56,7 +57,6 @@ message GetReqBatch {
 }
 
 message GetRes {
-  optional string error = 1;
   repeated ResSeries data = 2;
 }
 
@@ -70,8 +70,8 @@ message ResSeries {
 }
 
 message ResPoint {
-  required double value = 1;
-  required int64 count = 2;
+  double value = 1;
+  int64 count = 2;
 }
 
 //   Services

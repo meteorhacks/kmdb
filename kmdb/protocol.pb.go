@@ -23,12 +23,10 @@ It has these top-level messages:
 	GetResBatch
 	ResSeries
 	ResPoint
-	Empty
 */
 package kmdb
 
 import proto "github.com/golang/protobuf/proto"
-import math "math"
 
 import (
 	context "golang.org/x/net/context"
@@ -41,59 +39,21 @@ var _ grpc.ClientConn
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = math.Inf
 
 type PutReq struct {
-	Database         *string  `protobuf:"bytes,1,req,name=database" json:"database,omitempty"`
-	Timestamp        *int64   `protobuf:"varint,2,req,name=timestamp" json:"timestamp,omitempty"`
-	Fields           []string `protobuf:"bytes,3,rep,name=fields" json:"fields,omitempty"`
-	Value            *float64 `protobuf:"fixed64,4,req,name=value" json:"value,omitempty"`
-	Count            *int64   `protobuf:"varint,5,req,name=count" json:"count,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Database  string   `protobuf:"bytes,1,opt,name=database" json:"database,omitempty"`
+	Timestamp int64    `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	Value     float64  `protobuf:"fixed64,3,opt,name=value" json:"value,omitempty"`
+	Count     int64    `protobuf:"varint,4,opt,name=count" json:"count,omitempty"`
+	Fields    []string `protobuf:"bytes,5,rep,name=fields" json:"fields,omitempty"`
 }
 
 func (m *PutReq) Reset()         { *m = PutReq{} }
 func (m *PutReq) String() string { return proto.CompactTextString(m) }
 func (*PutReq) ProtoMessage()    {}
 
-func (m *PutReq) GetDatabase() string {
-	if m != nil && m.Database != nil {
-		return *m.Database
-	}
-	return ""
-}
-
-func (m *PutReq) GetTimestamp() int64 {
-	if m != nil && m.Timestamp != nil {
-		return *m.Timestamp
-	}
-	return 0
-}
-
-func (m *PutReq) GetFields() []string {
-	if m != nil {
-		return m.Fields
-	}
-	return nil
-}
-
-func (m *PutReq) GetValue() float64 {
-	if m != nil && m.Value != nil {
-		return *m.Value
-	}
-	return 0
-}
-
-func (m *PutReq) GetCount() int64 {
-	if m != nil && m.Count != nil {
-		return *m.Count
-	}
-	return 0
-}
-
 type PutReqBatch struct {
-	Batch            []*PutReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*PutReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *PutReqBatch) Reset()         { *m = PutReqBatch{} }
@@ -108,7 +68,6 @@ func (m *PutReqBatch) GetBatch() []*PutReq {
 }
 
 type PutRes struct {
-	XXX_unrecognized []byte `json:"-"`
 }
 
 func (m *PutRes) Reset()         { *m = PutRes{} }
@@ -116,8 +75,7 @@ func (m *PutRes) String() string { return proto.CompactTextString(m) }
 func (*PutRes) ProtoMessage()    {}
 
 type PutResBatch struct {
-	Batch            []*PutRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*PutRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *PutResBatch) Reset()         { *m = PutResBatch{} }
@@ -132,56 +90,19 @@ func (m *PutResBatch) GetBatch() []*PutRes {
 }
 
 type IncReq struct {
-	Database         *string  `protobuf:"bytes,1,req,name=database" json:"database,omitempty"`
-	Timestamp        *int64   `protobuf:"varint,2,req,name=timestamp" json:"timestamp,omitempty"`
-	Fields           []string `protobuf:"bytes,3,rep,name=fields" json:"fields,omitempty"`
-	Value            *float64 `protobuf:"fixed64,4,req,name=value" json:"value,omitempty"`
-	Count            *int64   `protobuf:"varint,5,req,name=count" json:"count,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Database  string   `protobuf:"bytes,1,opt,name=database" json:"database,omitempty"`
+	Timestamp int64    `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	Value     float64  `protobuf:"fixed64,3,opt,name=value" json:"value,omitempty"`
+	Count     int64    `protobuf:"varint,4,opt,name=count" json:"count,omitempty"`
+	Fields    []string `protobuf:"bytes,5,rep,name=fields" json:"fields,omitempty"`
 }
 
 func (m *IncReq) Reset()         { *m = IncReq{} }
 func (m *IncReq) String() string { return proto.CompactTextString(m) }
 func (*IncReq) ProtoMessage()    {}
 
-func (m *IncReq) GetDatabase() string {
-	if m != nil && m.Database != nil {
-		return *m.Database
-	}
-	return ""
-}
-
-func (m *IncReq) GetTimestamp() int64 {
-	if m != nil && m.Timestamp != nil {
-		return *m.Timestamp
-	}
-	return 0
-}
-
-func (m *IncReq) GetFields() []string {
-	if m != nil {
-		return m.Fields
-	}
-	return nil
-}
-
-func (m *IncReq) GetValue() float64 {
-	if m != nil && m.Value != nil {
-		return *m.Value
-	}
-	return 0
-}
-
-func (m *IncReq) GetCount() int64 {
-	if m != nil && m.Count != nil {
-		return *m.Count
-	}
-	return 0
-}
-
 type IncReqBatch struct {
-	Batch            []*IncReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*IncReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *IncReqBatch) Reset()         { *m = IncReqBatch{} }
@@ -196,7 +117,6 @@ func (m *IncReqBatch) GetBatch() []*IncReq {
 }
 
 type IncRes struct {
-	XXX_unrecognized []byte `json:"-"`
 }
 
 func (m *IncRes) Reset()         { *m = IncRes{} }
@@ -204,8 +124,7 @@ func (m *IncRes) String() string { return proto.CompactTextString(m) }
 func (*IncRes) ProtoMessage()    {}
 
 type IncResBatch struct {
-	Batch            []*IncRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*IncRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *IncResBatch) Reset()         { *m = IncResBatch{} }
@@ -220,56 +139,19 @@ func (m *IncResBatch) GetBatch() []*IncRes {
 }
 
 type GetReq struct {
-	Database         *string  `protobuf:"bytes,1,req,name=database" json:"database,omitempty"`
-	StartTime        *int64   `protobuf:"varint,2,req,name=startTime" json:"startTime,omitempty"`
-	EndTime          *int64   `protobuf:"varint,3,req,name=endTime" json:"endTime,omitempty"`
-	Fields           []string `protobuf:"bytes,4,rep,name=fields" json:"fields,omitempty"`
-	GroupBy          []bool   `protobuf:"varint,5,rep,name=groupBy" json:"groupBy,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Database  string   `protobuf:"bytes,1,opt,name=database" json:"database,omitempty"`
+	StartTime int64    `protobuf:"varint,2,opt,name=startTime" json:"startTime,omitempty"`
+	EndTime   int64    `protobuf:"varint,3,opt,name=endTime" json:"endTime,omitempty"`
+	Fields    []string `protobuf:"bytes,4,rep,name=fields" json:"fields,omitempty"`
+	GroupBy   []bool   `protobuf:"varint,5,rep,packed,name=groupBy" json:"groupBy,omitempty"`
 }
 
 func (m *GetReq) Reset()         { *m = GetReq{} }
 func (m *GetReq) String() string { return proto.CompactTextString(m) }
 func (*GetReq) ProtoMessage()    {}
 
-func (m *GetReq) GetDatabase() string {
-	if m != nil && m.Database != nil {
-		return *m.Database
-	}
-	return ""
-}
-
-func (m *GetReq) GetStartTime() int64 {
-	if m != nil && m.StartTime != nil {
-		return *m.StartTime
-	}
-	return 0
-}
-
-func (m *GetReq) GetEndTime() int64 {
-	if m != nil && m.EndTime != nil {
-		return *m.EndTime
-	}
-	return 0
-}
-
-func (m *GetReq) GetFields() []string {
-	if m != nil {
-		return m.Fields
-	}
-	return nil
-}
-
-func (m *GetReq) GetGroupBy() []bool {
-	if m != nil {
-		return m.GroupBy
-	}
-	return nil
-}
-
 type GetReqBatch struct {
-	Batch            []*GetReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*GetReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *GetReqBatch) Reset()         { *m = GetReqBatch{} }
@@ -284,21 +166,12 @@ func (m *GetReqBatch) GetBatch() []*GetReq {
 }
 
 type GetRes struct {
-	Error            *string      `protobuf:"bytes,1,opt,name=error" json:"error,omitempty"`
-	Data             []*ResSeries `protobuf:"bytes,2,rep,name=data" json:"data,omitempty"`
-	XXX_unrecognized []byte       `json:"-"`
+	Data []*ResSeries `protobuf:"bytes,2,rep,name=data" json:"data,omitempty"`
 }
 
 func (m *GetRes) Reset()         { *m = GetRes{} }
 func (m *GetRes) String() string { return proto.CompactTextString(m) }
 func (*GetRes) ProtoMessage()    {}
-
-func (m *GetRes) GetError() string {
-	if m != nil && m.Error != nil {
-		return *m.Error
-	}
-	return ""
-}
 
 func (m *GetRes) GetData() []*ResSeries {
 	if m != nil {
@@ -308,8 +181,7 @@ func (m *GetRes) GetData() []*ResSeries {
 }
 
 type GetResBatch struct {
-	Batch            []*GetRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Batch []*GetRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 }
 
 func (m *GetResBatch) Reset()         { *m = GetResBatch{} }
@@ -324,21 +196,13 @@ func (m *GetResBatch) GetBatch() []*GetRes {
 }
 
 type ResSeries struct {
-	Fields           []string    `protobuf:"bytes,1,rep,name=fields" json:"fields,omitempty"`
-	Points           []*ResPoint `protobuf:"bytes,2,rep,name=points" json:"points,omitempty"`
-	XXX_unrecognized []byte      `json:"-"`
+	Fields []string    `protobuf:"bytes,1,rep,name=fields" json:"fields,omitempty"`
+	Points []*ResPoint `protobuf:"bytes,2,rep,name=points" json:"points,omitempty"`
 }
 
 func (m *ResSeries) Reset()         { *m = ResSeries{} }
 func (m *ResSeries) String() string { return proto.CompactTextString(m) }
 func (*ResSeries) ProtoMessage()    {}
-
-func (m *ResSeries) GetFields() []string {
-	if m != nil {
-		return m.Fields
-	}
-	return nil
-}
 
 func (m *ResSeries) GetPoints() []*ResPoint {
 	if m != nil {
@@ -348,36 +212,13 @@ func (m *ResSeries) GetPoints() []*ResPoint {
 }
 
 type ResPoint struct {
-	Value            *float64 `protobuf:"fixed64,1,req,name=value" json:"value,omitempty"`
-	Count            *int64   `protobuf:"varint,2,req,name=count" json:"count,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Value float64 `protobuf:"fixed64,1,opt,name=value" json:"value,omitempty"`
+	Count int64   `protobuf:"varint,2,opt,name=count" json:"count,omitempty"`
 }
 
 func (m *ResPoint) Reset()         { *m = ResPoint{} }
 func (m *ResPoint) String() string { return proto.CompactTextString(m) }
 func (*ResPoint) ProtoMessage()    {}
-
-func (m *ResPoint) GetValue() float64 {
-	if m != nil && m.Value != nil {
-		return *m.Value
-	}
-	return 0
-}
-
-func (m *ResPoint) GetCount() int64 {
-	if m != nil && m.Count != nil {
-		return *m.Count
-	}
-	return 0
-}
-
-type Empty struct {
-	XXX_unrecognized []byte `json:"-"`
-}
-
-func (m *Empty) Reset()         { *m = Empty{} }
-func (m *Empty) String() string { return proto.CompactTextString(m) }
-func (*Empty) ProtoMessage()    {}
 
 func init() {
 }
