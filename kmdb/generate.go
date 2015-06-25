@@ -1,4 +1,3 @@
-//go:generate thrift --gen go -out ../ protocol.thrift
-//go:generate rm -rf thrift_service-remote
+//go:generate protoc --proto_path=$GOPATH/src:$GOPATH/src/github.com/gogo/protobuf/protobuf:. --go_out=plugins=grpc:. protocol.proto
 
 package kmdb

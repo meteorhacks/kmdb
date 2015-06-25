@@ -57,21 +57,31 @@ func StartWorker() {
 		os.Exit(1)
 	}
 
-	batch := make([]*kmdb.PutReq, *batchsize, *batchsize)
+	batch := &kmdb.PutReqBatch{}
+	batch.Batch = make([]*kmdb.PutReq, *batchsize, *batchsize)
+
+	var value float64 = 100.0
+	var count int64 = 10
+
 	for i := 0; i < *batchsize; i++ {
-		req := kmdb.NewPutReq()
+		req := &kmdb.PutReq{}
+		req.Database = dbname
+		req.Value = &value
+		req.Count = &count
 		req.Fields = make([]string, 4, 4)
 		req.Fields[0] = "a"
 		req.Fields[1] = "b"
 		req.Fields[2] = "c"
 		req.Fields[3] = "d"
-		batch[i] = req
+		batch.Batch[i] = req
 	}
 
 	for {
+		now := time.Now().UnixNano()
+
 		for i := 0; i < *batchsize; i++ {
-			req := batch[i]
-			req.Timestamp = time.Now().UnixNano()
+			req := batch.Batch[i]
+			req.Timestamp = &now
 			if *randomize {
 				req.Fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
 				req.Fields[1] = "b" + strconv.Itoa(rand.Intn(20))
