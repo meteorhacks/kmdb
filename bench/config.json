@@ -1,0 +1,15 @@
+{
+    "remote_debug": true,
+    "listen_address": ":3000",
+
+    "databases": {
+        "test": {
+            "database_path": "/tmp/test-db",
+            "index_depth": 4,
+            "payload_size": 16,
+            "payload_resolution": 60000000000,
+            "bucket_duration": 3600000000000,
+            "segment_size": 100000
+        }
+    }
+}
