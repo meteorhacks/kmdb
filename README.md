@@ -9,7 +9,7 @@ Create a configuration JSON file with following fields. All fields are mandatory
 ```json
 {
     "remote_debug": true,
-    "bddp_address": ":3000",
+    "thrift_address": ":3000",
 
     "databases": {
         "test": {

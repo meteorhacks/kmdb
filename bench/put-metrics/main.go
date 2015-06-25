@@ -57,33 +57,40 @@ func StartWorker() {
 		os.Exit(1)
 	}
 
+	batch := &kmdb.PutReqBatch{}
+	batch.Batch = make([]*kmdb.PutReq, *batchsize, *batchsize)
+
+	var value float64 = 100.0
+	var count int64 = 10
+
+	for i := 0; i < *batchsize; i++ {
+		req := &kmdb.PutReq{}
+		req.Database = dbname
+		req.Value = &value
+		req.Count = &count
+		req.Fields = make([]string, 4, 4)
+		req.Fields[0] = "a"
+		req.Fields[1] = "b"
+		req.Fields[2] = "c"
+		req.Fields[3] = "d"
+		batch.Batch[i] = req
+	}
+
 	for {
-		b, err := c.PutBatch(*batchsize)
-		if err != nil {
-			log.Println("PUT ERROR:", err)
-			continue
-		}
+		now := time.Now().UnixNano()
 
 		for i := 0; i < *batchsize; i++ {
-			ts := time.Now().UnixNano()
-			fields := make([]string, 4, 4)
-
+			req := batch.Batch[i]
+			req.Timestamp = &now
 			if *randomize {
-				fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
-				fields[1] = "b" + strconv.Itoa(rand.Intn(20))
-				fields[2] = "c" + strconv.Itoa(rand.Intn(5))
-				fields[3] = "d" + strconv.Itoa(rand.Intn(10))
-			} else {
-				fields[0] = "a"
-				fields[1] = "b"
-				fields[2] = "c"
-				fields[3] = "d"
+				req.Fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
+				req.Fields[1] = "b" + strconv.Itoa(rand.Intn(20))
+				req.Fields[2] = "c" + strconv.Itoa(rand.Intn(5))
+				req.Fields[3] = "d" + strconv.Itoa(rand.Intn(10))
 			}
-
-			b.Set(i, *dbname, ts, fields, 1, 1)
 		}
 
-		if _, err = b.Send(); err != nil {
+		if _, err := c.PutBatch(batch); err != nil {
 			log.Println("PUT ERROR:", err)
 			continue
 		}

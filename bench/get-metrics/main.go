@@ -19,6 +19,7 @@ var (
 	batchsize   *int
 	duration    *int64
 	indexFind   *bool
+	groupData   *bool
 	randomize   *bool
 
 	groupBy    = []bool{true, true, true, true}
@@ -33,6 +34,7 @@ func init() {
 	batchsize = flag.Int("b", 10, "requests per batch")
 	duration = flag.Int64("d", 3600000000000, "time range")
 	indexFind = flag.Bool("f", true, "trigger a find on db")
+	groupData = flag.Bool("g", true, "group (marge) last field")
 	randomize = flag.Bool("r", true, "randomize fields")
 	flag.Parse()
 }
@@ -62,40 +64,57 @@ func StartWorker() {
 		os.Exit(1)
 	}
 
-	for {
-		b, err := c.GetBatch(*batchsize)
-		if err != nil {
-			log.Println("GET ERROR:", err)
-			continue
+	batch := &kmdb.GetReqBatch{}
+	batch.Batch = make([]*kmdb.GetReq, *batchsize, *batchsize)
+
+	for i := 0; i < *batchsize; i++ {
+		req := &kmdb.GetReq{}
+		req.Database = dbname
+		req.Fields = make([]string, 4, 4)
+		req.Fields[0] = "a"
+		req.Fields[1] = "b"
+		req.Fields[2] = "c"
+		req.Fields[3] = "d"
+		req.GroupBy = make([]bool, 4, 4)
+		req.GroupBy[0] = true
+		req.GroupBy[1] = true
+		req.GroupBy[2] = true
+		req.GroupBy[3] = true
+
+		if *indexFind {
+			req.Fields[3] = ""
 		}
+
+		if *groupData {
+			req.GroupBy[3] = false
+		}
+
+		batch.Batch[i] = req
+	}
+
+	for {
+		ts2 := time.Now().UnixNano()
+		ts1 := ts2 - *duration
 
 		for i := 0; i < *batchsize; i++ {
-			end := time.Now().UnixNano()
-			start := end - *duration
-			fields := make([]string, 4, 4)
+			req := batch.Batch[i]
+			req.StartTime = &ts1
+			req.EndTime = &ts2
 
 			if *randomize {
-				fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
-				fields[1] = "b" + strconv.Itoa(rand.Intn(20))
-				fields[2] = "c" + strconv.Itoa(rand.Intn(5))
-			} else {
-				fields[0] = "a"
-				fields[1] = "b"
-				fields[2] = "c"
-			}
+				req.Fields[0] = "a" + strconv.Itoa(rand.Intn(1000))
+				req.Fields[1] = "b" + strconv.Itoa(rand.Intn(20))
+				req.Fields[2] = "c" + strconv.Itoa(rand.Intn(5))
 
-			if *indexFind {
-				fields[3] = ""
-			} else if *randomize {
-				fields[3] = "d" + strconv.Itoa(rand.Intn(10))
-			} else {
-				fields[3] = "d"
+				if *indexFind {
+					req.Fields[3] = ""
+				} else {
+					req.Fields[3] = "d" + strconv.Itoa(rand.Intn(10))
+				}
 			}
-
-			b.Set(i, *dbname, start, end, fields, groupBy)
 		}
 
-		if _, err = b.Send(); err != nil {
+		if _, err := c.GetBatch(batch); err != nil {
 			log.Println("GET ERROR:", err)
 			continue
 		}

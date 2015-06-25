@@ -66,8 +66,8 @@ func main() {
 	// start pprof server
 	go startPPROF(config)
 
-	// finally, start the bddp server on main
-	// app will exit if bddp server crashes
+	// finally, start the grpc server on main
+	// app will exit if grpc server crashes
 	log.Println(s.Listen())
 }
 
@@ -84,6 +84,6 @@ func startPPROF(config *kmdb.ServerConfig) {
 		addr = ":6060"
 	}
 
-	log.Println("PPROF: listening on", addr)
+	log.Println("PPROF:  listening on", addr)
 	log.Println(http.ListenAndServe(addr, nil))
 }

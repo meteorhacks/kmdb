@@ -1,0 +1,87 @@
+package kmdb;
+
+//   Types
+// ---------
+
+message PutReq {
+  required string database = 1;
+  required int64 timestamp = 2;
+  repeated string fields = 3;
+  required double value = 4;
+  required int64 count = 5;
+}
+
+message PutReqBatch {
+  repeated PutReq batch = 1;
+}
+
+message PutRes {
+  // add fields if necessary
+}
+
+message PutResBatch {
+  repeated PutRes batch = 1;
+}
+
+message IncReq {
+  required string database = 1;
+  required int64 timestamp = 2;
+  repeated string fields = 3;
+  required double value = 4;
+  required int64 count = 5;
+}
+
+message IncReqBatch {
+  repeated IncReq batch = 1;
+}
+
+message IncRes {
+  // add fields if necessary
+}
+
+message IncResBatch {
+  repeated IncRes batch = 1;
+}
+
+message GetReq {
+  required string database = 1;
+  required int64 startTime = 2;
+  required int64 endTime = 3;
+  repeated string fields = 4;
+  repeated bool groupBy = 5;
+}
+
+message GetReqBatch {
+  repeated GetReq batch = 1;
+}
+
+message GetRes {
+  optional string error = 1;
+  repeated ResSeries data = 2;
+}
+
+message GetResBatch {
+  repeated GetRes batch = 1;
+}
+
+message ResSeries {
+  repeated string fields = 1;
+  repeated ResPoint points = 2;
+}
+
+message ResPoint {
+  required double value = 1;
+  required int64 count = 2;
+}
+
+//   Services
+// ------------
+
+service DatabaseService {
+  rpc Put(PutReq) returns (PutRes);
+  rpc PutBatch(PutReqBatch) returns (PutResBatch);
+  rpc Inc(IncReq) returns (IncRes);
+  rpc IncBatch(IncReqBatch) returns (IncResBatch);
+  rpc Get(GetReq) returns (GetRes);
+  rpc GetBatch(GetReqBatch) returns (GetResBatch);
+}
