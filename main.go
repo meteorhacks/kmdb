@@ -66,8 +66,8 @@ func main() {
 	// start pprof server
 	go startPPROF(config)
 
-	// finally, start the bddp server on main
-	// app will exit if bddp server crashes
+	// finally, start the grpc server on main
+	// app will exit if grpc server crashes
 	log.Println(s.Listen())
 }
 

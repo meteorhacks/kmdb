@@ -11,12 +11,12 @@ message PutReq {
   required int64 count = 5;
 }
 
-message PutRes {
-  optional string error = 1;
-}
-
 message PutReqBatch {
   repeated PutReq batch = 1;
+}
+
+message PutRes {
+  // add fields if necessary
 }
 
 message PutResBatch {
@@ -31,12 +31,12 @@ message IncReq {
   required int64 count = 5;
 }
 
-message IncRes {
-  optional string error = 1;
-}
-
 message IncReqBatch {
   repeated IncReq batch = 1;
+}
+
+message IncRes {
+  // add fields if necessary
 }
 
 message IncResBatch {
@@ -51,13 +51,13 @@ message GetReq {
   repeated bool groupBy = 5;
 }
 
+message GetReqBatch {
+  repeated GetReq batch = 1;
+}
+
 message GetRes {
   optional string error = 1;
   repeated ResSeries data = 2;
-}
-
-message GetReqBatch {
-  repeated GetReq batch = 1;
 }
 
 message GetResBatch {
@@ -79,9 +79,9 @@ message ResPoint {
 
 service DatabaseService {
   rpc Put(PutReq) returns (PutRes);
-  rpc Inc(IncReq) returns (IncRes);
-  rpc Get(GetReq) returns (GetRes);
   rpc PutBatch(PutReqBatch) returns (PutResBatch);
+  rpc Inc(IncReq) returns (IncRes);
   rpc IncBatch(IncReqBatch) returns (IncResBatch);
+  rpc Get(GetReq) returns (GetRes);
   rpc GetBatch(GetReqBatch) returns (GetResBatch);
 }

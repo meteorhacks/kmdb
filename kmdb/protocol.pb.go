@@ -10,19 +10,20 @@ It is generated from these files:
 
 It has these top-level messages:
 	PutReq
-	PutRes
 	PutReqBatch
+	PutRes
 	PutResBatch
 	IncReq
-	IncRes
 	IncReqBatch
+	IncRes
 	IncResBatch
 	GetReq
-	GetRes
 	GetReqBatch
+	GetRes
 	GetResBatch
 	ResSeries
 	ResPoint
+	Empty
 */
 package kmdb
 
@@ -90,22 +91,6 @@ func (m *PutReq) GetCount() int64 {
 	return 0
 }
 
-type PutRes struct {
-	Error            *string `protobuf:"bytes,1,opt,name=error" json:"error,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *PutRes) Reset()         { *m = PutRes{} }
-func (m *PutRes) String() string { return proto.CompactTextString(m) }
-func (*PutRes) ProtoMessage()    {}
-
-func (m *PutRes) GetError() string {
-	if m != nil && m.Error != nil {
-		return *m.Error
-	}
-	return ""
-}
-
 type PutReqBatch struct {
 	Batch            []*PutReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 	XXX_unrecognized []byte    `json:"-"`
@@ -121,6 +106,14 @@ func (m *PutReqBatch) GetBatch() []*PutReq {
 	}
 	return nil
 }
+
+type PutRes struct {
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *PutRes) Reset()         { *m = PutRes{} }
+func (m *PutRes) String() string { return proto.CompactTextString(m) }
+func (*PutRes) ProtoMessage()    {}
 
 type PutResBatch struct {
 	Batch            []*PutRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
@@ -186,22 +179,6 @@ func (m *IncReq) GetCount() int64 {
 	return 0
 }
 
-type IncRes struct {
-	Error            *string `protobuf:"bytes,1,opt,name=error" json:"error,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *IncRes) Reset()         { *m = IncRes{} }
-func (m *IncRes) String() string { return proto.CompactTextString(m) }
-func (*IncRes) ProtoMessage()    {}
-
-func (m *IncRes) GetError() string {
-	if m != nil && m.Error != nil {
-		return *m.Error
-	}
-	return ""
-}
-
 type IncReqBatch struct {
 	Batch            []*IncReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
 	XXX_unrecognized []byte    `json:"-"`
@@ -217,6 +194,14 @@ func (m *IncReqBatch) GetBatch() []*IncReq {
 	}
 	return nil
 }
+
+type IncRes struct {
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *IncRes) Reset()         { *m = IncRes{} }
+func (m *IncRes) String() string { return proto.CompactTextString(m) }
+func (*IncRes) ProtoMessage()    {}
 
 type IncResBatch struct {
 	Batch            []*IncRes `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
@@ -282,6 +267,22 @@ func (m *GetReq) GetGroupBy() []bool {
 	return nil
 }
 
+type GetReqBatch struct {
+	Batch            []*GetReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
+	XXX_unrecognized []byte    `json:"-"`
+}
+
+func (m *GetReqBatch) Reset()         { *m = GetReqBatch{} }
+func (m *GetReqBatch) String() string { return proto.CompactTextString(m) }
+func (*GetReqBatch) ProtoMessage()    {}
+
+func (m *GetReqBatch) GetBatch() []*GetReq {
+	if m != nil {
+		return m.Batch
+	}
+	return nil
+}
+
 type GetRes struct {
 	Error            *string      `protobuf:"bytes,1,opt,name=error" json:"error,omitempty"`
 	Data             []*ResSeries `protobuf:"bytes,2,rep,name=data" json:"data,omitempty"`
@@ -302,22 +303,6 @@ func (m *GetRes) GetError() string {
 func (m *GetRes) GetData() []*ResSeries {
 	if m != nil {
 		return m.Data
-	}
-	return nil
-}
-
-type GetReqBatch struct {
-	Batch            []*GetReq `protobuf:"bytes,1,rep,name=batch" json:"batch,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
-}
-
-func (m *GetReqBatch) Reset()         { *m = GetReqBatch{} }
-func (m *GetReqBatch) String() string { return proto.CompactTextString(m) }
-func (*GetReqBatch) ProtoMessage()    {}
-
-func (m *GetReqBatch) GetBatch() []*GetReq {
-	if m != nil {
-		return m.Batch
 	}
 	return nil
 }
@@ -386,6 +371,14 @@ func (m *ResPoint) GetCount() int64 {
 	return 0
 }
 
+type Empty struct {
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *Empty) Reset()         { *m = Empty{} }
+func (m *Empty) String() string { return proto.CompactTextString(m) }
+func (*Empty) ProtoMessage()    {}
+
 func init() {
 }
 
@@ -393,10 +386,10 @@ func init() {
 
 type DatabaseServiceClient interface {
 	Put(ctx context.Context, in *PutReq, opts ...grpc.CallOption) (*PutRes, error)
-	Inc(ctx context.Context, in *IncReq, opts ...grpc.CallOption) (*IncRes, error)
-	Get(ctx context.Context, in *GetReq, opts ...grpc.CallOption) (*GetRes, error)
 	PutBatch(ctx context.Context, in *PutReqBatch, opts ...grpc.CallOption) (*PutResBatch, error)
+	Inc(ctx context.Context, in *IncReq, opts ...grpc.CallOption) (*IncRes, error)
 	IncBatch(ctx context.Context, in *IncReqBatch, opts ...grpc.CallOption) (*IncResBatch, error)
+	Get(ctx context.Context, in *GetReq, opts ...grpc.CallOption) (*GetRes, error)
 	GetBatch(ctx context.Context, in *GetReqBatch, opts ...grpc.CallOption) (*GetResBatch, error)
 }
 
@@ -417,24 +410,6 @@ func (c *databaseServiceClient) Put(ctx context.Context, in *PutReq, opts ...grp
 	return out, nil
 }
 
-func (c *databaseServiceClient) Inc(ctx context.Context, in *IncReq, opts ...grpc.CallOption) (*IncRes, error) {
-	out := new(IncRes)
-	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/Inc", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *databaseServiceClient) Get(ctx context.Context, in *GetReq, opts ...grpc.CallOption) (*GetRes, error) {
-	out := new(GetRes)
-	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/Get", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *databaseServiceClient) PutBatch(ctx context.Context, in *PutReqBatch, opts ...grpc.CallOption) (*PutResBatch, error) {
 	out := new(PutResBatch)
 	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/PutBatch", in, out, c.cc, opts...)
@@ -444,9 +419,27 @@ func (c *databaseServiceClient) PutBatch(ctx context.Context, in *PutReqBatch, o
 	return out, nil
 }
 
+func (c *databaseServiceClient) Inc(ctx context.Context, in *IncReq, opts ...grpc.CallOption) (*IncRes, error) {
+	out := new(IncRes)
+	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/Inc", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *databaseServiceClient) IncBatch(ctx context.Context, in *IncReqBatch, opts ...grpc.CallOption) (*IncResBatch, error) {
 	out := new(IncResBatch)
 	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/IncBatch", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *databaseServiceClient) Get(ctx context.Context, in *GetReq, opts ...grpc.CallOption) (*GetRes, error) {
+	out := new(GetRes)
+	err := grpc.Invoke(ctx, "/kmdb.DatabaseService/Get", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -466,10 +459,10 @@ func (c *databaseServiceClient) GetBatch(ctx context.Context, in *GetReqBatch, o
 
 type DatabaseServiceServer interface {
 	Put(context.Context, *PutReq) (*PutRes, error)
-	Inc(context.Context, *IncReq) (*IncRes, error)
-	Get(context.Context, *GetReq) (*GetRes, error)
 	PutBatch(context.Context, *PutReqBatch) (*PutResBatch, error)
+	Inc(context.Context, *IncReq) (*IncRes, error)
 	IncBatch(context.Context, *IncReqBatch) (*IncResBatch, error)
+	Get(context.Context, *GetReq) (*GetRes, error)
 	GetBatch(context.Context, *GetReqBatch) (*GetResBatch, error)
 }
 
@@ -489,30 +482,6 @@ func _DatabaseService_Put_Handler(srv interface{}, ctx context.Context, codec gr
 	return out, nil
 }
 
-func _DatabaseService_Inc_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(IncReq)
-	if err := codec.Unmarshal(buf, in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(DatabaseServiceServer).Inc(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func _DatabaseService_Get_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
-	in := new(GetReq)
-	if err := codec.Unmarshal(buf, in); err != nil {
-		return nil, err
-	}
-	out, err := srv.(DatabaseServiceServer).Get(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func _DatabaseService_PutBatch_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(PutReqBatch)
 	if err := codec.Unmarshal(buf, in); err != nil {
@@ -525,12 +494,36 @@ func _DatabaseService_PutBatch_Handler(srv interface{}, ctx context.Context, cod
 	return out, nil
 }
 
+func _DatabaseService_Inc_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(IncReq)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(DatabaseServiceServer).Inc(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _DatabaseService_IncBatch_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(IncReqBatch)
 	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(DatabaseServiceServer).IncBatch(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _DatabaseService_Get_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(GetReq)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(DatabaseServiceServer).Get(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -558,20 +551,20 @@ var _DatabaseService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _DatabaseService_Put_Handler,
 		},
 		{
-			MethodName: "Inc",
-			Handler:    _DatabaseService_Inc_Handler,
-		},
-		{
-			MethodName: "Get",
-			Handler:    _DatabaseService_Get_Handler,
-		},
-		{
 			MethodName: "PutBatch",
 			Handler:    _DatabaseService_PutBatch_Handler,
 		},
 		{
+			MethodName: "Inc",
+			Handler:    _DatabaseService_Inc_Handler,
+		},
+		{
 			MethodName: "IncBatch",
 			Handler:    _DatabaseService_IncBatch_Handler,
+		},
+		{
+			MethodName: "Get",
+			Handler:    _DatabaseService_Get_Handler,
 		},
 		{
 			MethodName: "GetBatch",

@@ -1,29 +1,23 @@
 package kmdb
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"log"
 	"net"
 
-	"google.golang.org/grpc"
-
 	"github.com/meteorhacks/kdb"
 	"golang.org/x/net/context"
-)
-
-const (
-	PayloadSize = 16
+	"google.golang.org/grpc"
 )
 
 var (
+	ErrDBNotFound = errors.New("requested db is not setup on this server")
 	ErrBatchError = errors.New("batch didn't complete successfully")
 )
 
 type DatabaseConfig struct {
-	// database name. Currently only used with naming files
-	// can be useful when supporting multiple Databases
-	DatabaseName string `json:"database_name"`
-
 	// place to store data files
 	DataPath string `json:"database_path"`
 
@@ -147,15 +141,267 @@ func (s *server) GetBatch(ctx context.Context, batch *GetReqBatch) (r *GetResBat
 
 func (s *server) put(req *PutReq) (r *PutRes, err error) {
 	r = &PutRes{}
+
+	dbName := req.GetDatabase()
+	db, _, err := s.getDB(dbName)
+	if err != nil {
+		return r, err
+	}
+
+	pld := valToPld(req.GetValue(), req.GetCount())
+
+	ts := req.GetTimestamp()
+	fields := req.GetFields()
+	if err := db.Put(ts, fields, pld); err != nil {
+		return r, err
+	}
+
 	return r, nil
 }
 
 func (s *server) inc(req *IncReq) (r *IncRes, err error) {
 	r = &IncRes{}
+
+	dbName := req.GetDatabase()
+	db, dbCfg, err := s.getDB(dbName)
+	if err != nil {
+		return r, err
+	}
+
+	ts1 := req.GetTimestamp()
+	ts2 := ts1 + dbCfg.Resolution
+	fields := req.GetFields()
+	out, err := db.Get(ts1, ts2, fields)
+	if err != nil {
+		return r, err
+	}
+
+	val, num := pldToVal(out[0])
+	val += req.GetValue()
+	num += req.GetCount()
+	pld := valToPld(val, num)
+
+	if err := db.Put(ts1, fields, pld); err != nil {
+		return r, err
+	}
+
 	return r, nil
 }
 
 func (s *server) get(req *GetReq) (r *GetRes, err error) {
 	r = &GetRes{}
+
+	dbName := req.GetDatabase()
+	db, dbCfg, err := s.getDB(dbName)
+	if err != nil {
+		return r, err
+	}
+
+	ts1 := req.GetStartTime()
+	ts2 := req.GetEndTime()
+	fields := req.GetFields()
+	groupBy := req.GetGroupBy()
+
+	gettable := true
+	vcount := int(dbCfg.IndexDepth)
+	for j := 0; j < vcount; j++ {
+		if fields[j] == "" {
+			gettable = false
+		}
+	}
+
+	var ss *seriesSet
+	// use the `Get` method only if all values are set
+	// otherwise use the more costly `Find` method
+	if gettable {
+		ss, err = s.getWithGet(db, ts1, ts2, fields, groupBy)
+	} else {
+		ss, err = s.getWithFind(db, ts1, ts2, fields, groupBy)
+	}
+
+	if err != nil {
+		return r, err
+	}
+
+	r.Data = ss.toResult()
+
 	return r, nil
+}
+
+// Get database and database config
+func (s *server) getDB(name string) (db kdb.Database, cfg *DatabaseConfig, err error) {
+	db, ok := s.dbs[name]
+	if !ok {
+		return nil, nil, ErrDBNotFound
+	}
+
+	config, ok := s.cfg.Databases[name]
+	if !ok {
+		return nil, nil, ErrDBNotFound
+	}
+
+	return db, &config, nil
+}
+
+func (s *server) getWithGet(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriesSet, err error) {
+	data, err := db.Get(start, end, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	ss = s.newSeriesSet(groupBy)
+	sr := s.newSeries(data, fields)
+	ss.add(sr)
+
+	return ss, nil
+}
+
+func (s *server) getWithFind(db kdb.Database, start, end int64, fields []string, groupBy []bool) (ss *seriesSet, err error) {
+	dataMap, err := db.Find(start, end, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	ss = s.newSeriesSet(groupBy)
+
+	for el, data := range dataMap {
+		sr := s.newSeries(data, el.Values)
+		ss.add(sr)
+	}
+
+	return ss, nil
+}
+
+func (s *server) newSeries(data [][]byte, fields []string) (sr *series) {
+	count := len(data)
+	points := make([]*point, count, count)
+
+	for i := 0; i < count; i++ {
+		val, num := pldToVal(data[i])
+		points[i] = &point{val, num}
+	}
+
+	return &series{fields, points, data}
+}
+
+func (s *server) newSeriesSet(groupBy []bool) (ss *seriesSet) {
+	set := []*series{}
+	return &seriesSet{set, groupBy}
+}
+
+func valToPld(val float64, num int64) (pld []byte) {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, val)
+	binary.Write(buf, binary.LittleEndian, num)
+	return buf.Bytes()
+}
+
+func pldToVal(pld []byte) (val float64, num int64) {
+	buf := bytes.NewBuffer(pld)
+	binary.Read(buf, binary.LittleEndian, &val)
+	binary.Read(buf, binary.LittleEndian, &num)
+	return val, num
+}
+
+// Helper structs for building get results
+
+type point struct {
+	value float64
+	count int64
+}
+
+func (p *point) add(q *point) {
+	p.value += q.value
+	p.count += q.count
+}
+
+func (p *point) toResult() (item *ResPoint) {
+	item = &ResPoint{}
+	item.Value = &p.value
+	item.Count = &p.count
+	return item
+}
+
+type series struct {
+	fields []string
+	points []*point
+	data   [][]byte
+}
+
+func (sr *series) add(sn *series) {
+	count := len(sr.points)
+	for i := 0; i < count; i++ {
+		sr.points[i].add(sn.points[i])
+	}
+}
+
+func (sr *series) canMerge(sn *series) (can bool) {
+	count := len(sr.fields)
+	for i := 0; i < count; i++ {
+		if sr.fields[i] != sn.fields[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (sr *series) toResult() (item *ResSeries) {
+	item = &ResSeries{}
+	item.Fields = sr.fields
+
+	count := len(sr.points)
+	item.Points = make([]*ResPoint, count, count)
+	for i, p := range sr.points {
+		point := p.toResult()
+		item.Points[i] = point
+	}
+
+	return item
+}
+
+type seriesSet struct {
+	items   []*series
+	groupBy []bool
+}
+
+func (ss *seriesSet) add(sn *series) {
+	ss.grpFields(sn)
+
+	count := len(ss.items)
+	for i := 0; i < count; i++ {
+		sr := ss.items[i]
+		if sr.canMerge(sn) {
+			sr.add(sn)
+			return
+		}
+	}
+
+	ss.items = append(ss.items, sn)
+}
+
+func (ss *seriesSet) grpFields(sn *series) {
+	count := len(sn.fields)
+	grouped := make([]string, count, count)
+
+	for i := 0; i < count; i++ {
+		if ss.groupBy[i] {
+			grouped[i] = sn.fields[i]
+		}
+	}
+
+	sn.fields = grouped
+}
+
+func (ss *seriesSet) toResult() (res []*ResSeries) {
+	count := len(ss.items)
+	res = make([]*ResSeries, count, count)
+
+	for i := 0; i < count; i++ {
+		sr := ss.items[i]
+		item := sr.toResult()
+		res[i] = item
+	}
+
+	return res
 }
