@@ -76,10 +76,6 @@ func init() {
 // ---------
 
 func TestPut(t *testing.T) {
-	now := time.Now().UnixNano()
-}
-
-func TestPutBatch(t *testing.T) {
 	// TODO: write test
 }
 
@@ -87,14 +83,6 @@ func TestInc(t *testing.T) {
 	// TODO: write test
 }
 
-func TestIncBatch(t *testing.T) {
-	// TODO: write test
-}
-
 func TestGet(t *testing.T) {
-	// TODO: write test
-}
-
-func TestGetBatch(t *testing.T) {
 	// TODO: write test
 }
