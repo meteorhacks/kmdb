@@ -114,7 +114,7 @@ func StartWorker() {
 			}
 		}
 
-		if _, err := c.GetBatch(batch); err != nil {
+		if _, err := c.Get(batch); err != nil {
 			log.Println("GET ERROR:", err)
 			continue
 		}

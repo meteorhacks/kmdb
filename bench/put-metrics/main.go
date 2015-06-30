@@ -87,7 +87,7 @@ func StartWorker() {
 			}
 		}
 
-		if _, err := c.PutBatch(batch); err != nil {
+		if _, err := c.Put(batch); err != nil {
 			log.Println("PUT ERROR:", err)
 			continue
 		}

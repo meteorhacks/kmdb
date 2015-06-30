@@ -87,7 +87,7 @@ func StartWorker() {
 			}
 		}
 
-		if _, err := c.IncBatch(batch); err != nil {
+		if _, err := c.Inc(batch); err != nil {
 			log.Println("INC ERROR:", err)
 			continue
 		}
