@@ -12,6 +12,12 @@ import (
 //   Init
 // --------
 
+const (
+	Address  = "localhost:3000"
+	DataPath = "/tmp/kmdb_test"
+	Database = "test"
+)
+
 var (
 	d kdb.Database
 	s Server
@@ -23,10 +29,10 @@ var (
 // tests performed later. Same database is used for all tests.
 
 func init() {
-	os.RemoveAll("/tmp/kmdb_test")
+	os.RemoveAll(DataPath)
 
 	dcfg := DatabaseConfig{
-		DataPath:       "/tmp/kmdb_test",
+		DataPath:       DataPath,
 		IndexDepth:     4,
 		PayloadSize:    16,
 		BucketDuration: 3600000000000,
@@ -36,15 +42,15 @@ func init() {
 
 	cfg := &ServerConfig{
 		RemoteDebug:   true,
-		ListenAddress: "localhost:3000",
+		ListenAddress: Address,
 		Databases: map[string]DatabaseConfig{
-			"test": dcfg,
+			Database: dcfg,
 		},
 	}
 
 	dbs := map[string]kdb.Database{}
 	db, err := dbase.New(dbase.Options{
-		DatabaseName:   "test",
+		DatabaseName:   Database,
 		DataPath:       dcfg.DataPath,
 		IndexDepth:     dcfg.IndexDepth,
 		PayloadSize:    dcfg.PayloadSize,
@@ -66,7 +72,7 @@ func init() {
 	// wait for the server to start
 	time.Sleep(time.Second * 2)
 
-	c = NewClient("localhost:3000")
+	c = NewClient(Address)
 	if err := c.Connect(); err != nil {
 		panic(err)
 	}
