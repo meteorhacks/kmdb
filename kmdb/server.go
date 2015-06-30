@@ -5,11 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"log"
-	"net"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/meteorhacks/kdb"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
+	"github.com/meteorhacks/simple-rpc-go"
 )
 
 var (
@@ -52,8 +51,10 @@ type ServerConfig struct {
 // ----------
 
 type Server interface {
-	DatabaseServiceServer
 	Listen() (err error)
+	Put(req []byte) (res []byte, err error)
+	Inc(req []byte) (res []byte, err error)
+	Get(req []byte) (res []byte, err error)
 }
 
 type server struct {
@@ -67,76 +68,106 @@ func NewServer(dbs map[string]kdb.Database, cfg *ServerConfig) (s Server) {
 }
 
 func (s *server) Listen() (err error) {
-	lis, err := net.Listen("tcp", s.cfg.ListenAddress)
+	srv := srpc.NewServer(s.cfg.ListenAddress)
+	srv.SetHandler("put", s.Put)
+	srv.SetHandler("inc", s.Inc)
+	srv.SetHandler("get", s.Get)
+
+	log.Println("SRPCS:  listening on", s.cfg.ListenAddress)
+	return srv.Listen()
+}
+
+func (s *server) Put(req []byte) (res []byte, err error) {
+	batch := &PutReqBatch{}
+	err = proto.Unmarshal(req, batch)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	gsrv := grpc.NewServer()
-	RegisterDatabaseServiceServer(gsrv, s)
-
-	log.Println("GRPCS:  listening on", s.cfg.ListenAddress)
-	return gsrv.Serve(lis)
-}
-
-func (s *server) Put(ctx context.Context, req *PutReq) (r *PutRes, err error) {
-	return s.put(req)
-}
-
-func (s *server) Inc(ctx context.Context, req *IncReq) (r *IncRes, err error) {
-	return s.inc(req)
-}
-
-func (s *server) Get(ctx context.Context, req *GetReq) (r *GetRes, err error) {
-	return s.get(req)
-}
-
-func (s *server) PutBatch(ctx context.Context, batch *PutReqBatch) (r *PutResBatch, berr error) {
-	n := len(batch.GetBatch())
-	r = &PutResBatch{}
+	n := len(batch.Batch)
+	r := &PutResBatch{}
 	r.Batch = make([]*PutRes, n, n)
-	var err error
+	var batchError error
 
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.put(batch.Batch[i])
-		if err != nil && berr == nil {
-			berr = ErrBatchError
+		if err != nil && batchError == nil {
+			batchError = ErrBatchError
 		}
 	}
 
-	return r, berr
+	if batchError != nil {
+		return nil, batchError
+	}
+
+	res, err = proto.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
-func (s *server) IncBatch(ctx context.Context, batch *IncReqBatch) (r *IncResBatch, berr error) {
-	n := len(batch.GetBatch())
-	r = &IncResBatch{}
+func (s *server) Inc(req []byte) (res []byte, err error) {
+	batch := &IncReqBatch{}
+	err = proto.Unmarshal(req, batch)
+	if err != nil {
+		return nil, err
+	}
+
+	n := len(batch.Batch)
+	r := &IncResBatch{}
 	r.Batch = make([]*IncRes, n, n)
-	var err error
+	var batchError error
 
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.inc(batch.Batch[i])
-		if err != nil && berr == nil {
-			berr = ErrBatchError
+		if err != nil && batchError == nil {
+			batchError = ErrBatchError
 		}
 	}
 
-	return r, berr
+	if batchError != nil {
+		return nil, batchError
+	}
+
+	res, err = proto.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
-func (s *server) GetBatch(ctx context.Context, batch *GetReqBatch) (r *GetResBatch, berr error) {
-	n := len(batch.GetBatch())
-	r = &GetResBatch{}
+func (s *server) Get(req []byte) (res []byte, err error) {
+	batch := &GetReqBatch{}
+	err = proto.Unmarshal(req, batch)
+	if err != nil {
+		return nil, err
+	}
+
+	n := len(batch.Batch)
+	r := &GetResBatch{}
 	r.Batch = make([]*GetRes, n, n)
-	var err error
+	var batchError error
 
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.get(batch.Batch[i])
-		if err != nil && berr == nil {
-			berr = ErrBatchError
+		if err != nil && batchError == nil {
+			batchError = ErrBatchError
 		}
 	}
 
-	return r, berr
+	if batchError != nil {
+		return nil, batchError
+	}
+
+	res, err = proto.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (s *server) put(req *PutReq) (r *PutRes, err error) {
