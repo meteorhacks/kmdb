@@ -43,15 +43,15 @@ func main() {
 
 	dbs := map[string]kdb.Database{}
 
-	for name, config := range config.Databases {
+	for name, dbcfg := range config.Databases {
 		db, err := dbase.New(dbase.Options{
 			DatabaseName:   name,
-			DataPath:       config.DataPath,
-			IndexDepth:     config.IndexDepth,
-			PayloadSize:    config.PayloadSize,
-			BucketDuration: config.BucketDuration,
-			Resolution:     config.Resolution,
-			SegmentSize:    config.SegmentSize,
+			DataPath:       dbcfg.DataPath,
+			IndexDepth:     dbcfg.IndexDepth,
+			PayloadSize:    dbcfg.PayloadSize,
+			BucketDuration: dbcfg.BucketDuration,
+			Resolution:     dbcfg.Resolution,
+			SegmentSize:    dbcfg.SegmentSize,
 		})
 
 		if err != nil {

@@ -44,6 +44,7 @@ func init() {
 	}
 
 	cfg := &ServerConfig{
+		VerboseLogs:   true,
 		RemoteDebug:   true,
 		ListenAddress: Address,
 		Databases: map[string]DatabaseConfig{

@@ -41,6 +41,9 @@ type ServerConfig struct {
 	// enable pprof on ":6060" instead of "localhost:6060".
 	RemoteDebug bool `json:"remote_debug"`
 
+	// log each and every request processed by kmdb
+	VerboseLogs bool `json:"verbose_logs"`
+
 	// address to listen for thrift traffic (host:port)
 	ListenAddress string `json:"listen_address"`
 
@@ -171,6 +174,10 @@ func (s *server) Get(req []byte) (res []byte, err error) {
 }
 
 func (s *server) put(req *PutReq) (r *PutRes, err error) {
+	if s.cfg.VerboseLogs {
+		log.Printf("kmdb.put: %+v\n", req)
+	}
+
 	r = &PutRes{}
 
 	db, _, err := s.getDB(req.Database)
@@ -187,6 +194,10 @@ func (s *server) put(req *PutReq) (r *PutRes, err error) {
 }
 
 func (s *server) inc(req *IncReq) (r *IncRes, err error) {
+	if s.cfg.VerboseLogs {
+		log.Printf("kmdb.inc: %+v\n", req)
+	}
+
 	r = &IncRes{}
 
 	db, dbCfg, err := s.getDB(req.Database)
@@ -214,6 +225,10 @@ func (s *server) inc(req *IncReq) (r *IncRes, err error) {
 }
 
 func (s *server) get(req *GetReq) (r *GetRes, err error) {
+	if s.cfg.VerboseLogs {
+		log.Printf("kmdb.get: %+v\n", req)
+	}
+
 	r = &GetRes{}
 
 	db, dbCfg, err := s.getDB(req.Database)

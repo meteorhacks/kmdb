@@ -1,5 +1,6 @@
 {
     "remote_debug": true,
+    "verbose_logs": false,
     "listen_address": ":3000",
 
     "databases": {
