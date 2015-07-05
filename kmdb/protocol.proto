@@ -4,6 +4,20 @@ package kmdb;
 //   Types
 // ---------
 
+message InfoReq {
+  // add fields if necessary
+}
+
+message InfoRes {
+  repeated DBInfo databases = 1;
+}
+
+message DBInfo {
+  string name = 1;
+  int64 indexDepth = 2;
+  int64 resolution = 3;
+}
+
 message PutReq {
   string database = 1;
   int64 timestamp = 2;

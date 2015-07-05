@@ -86,6 +86,25 @@ func init() {
 //   Tests
 // ---------
 
+func TestInfoRequest(t *testing.T) {
+	req := &InfoReq{}
+	res, err := c.Info(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Databases) != 1 {
+		t.Fatal("incorrect number of results")
+	}
+
+	dbInfo := res.Databases[0]
+	if dbInfo.Name != "test" ||
+		dbInfo.IndexDepth != o.IndexDepth ||
+		dbInfo.Resolution != o.Resolution {
+		t.Fatal("incorrect values")
+	}
+}
+
 func TestEverything(t *testing.T) {
 	ts := time.Now().UnixNano()
 	f1 := []string{"a", "b", "c", "d"}

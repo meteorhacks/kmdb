@@ -55,6 +55,7 @@ type ServerConfig struct {
 
 type Server interface {
 	Listen() (err error)
+	Info(req []byte) (res []byte, err error)
 	Put(req []byte) (res []byte, err error)
 	Inc(req []byte) (res []byte, err error)
 	Get(req []byte) (res []byte, err error)
@@ -72,12 +73,37 @@ func NewServer(dbs map[string]kdb.Database, cfg *ServerConfig) (s Server) {
 
 func (s *server) Listen() (err error) {
 	srv := srpc.NewServer(s.cfg.ListenAddress)
+	srv.SetHandler("info", s.Info)
 	srv.SetHandler("put", s.Put)
 	srv.SetHandler("inc", s.Inc)
 	srv.SetHandler("get", s.Get)
 
 	log.Println("SRPCS:  listening on", s.cfg.ListenAddress)
 	return srv.Listen()
+}
+
+func (s *server) Info(req []byte) (res []byte, err error) {
+	r := &InfoRes{}
+	n := len(s.cfg.Databases)
+	r.Databases = make([]*DBInfo, n, n)
+
+	var i int
+	for name, info := range s.cfg.Databases {
+		r.Databases[i] = &DBInfo{
+			Name:       name,
+			IndexDepth: info.IndexDepth,
+			Resolution: info.Resolution,
+		}
+
+		i++ // increment
+	}
+
+	res, err = proto.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (s *server) Put(req []byte) (res []byte, err error) {

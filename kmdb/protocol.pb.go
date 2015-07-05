@@ -9,6 +9,9 @@ It is generated from these files:
 	protocol.proto
 
 It has these top-level messages:
+	InfoReq
+	InfoRes
+	DBInfo
 	PutReq
 	PutReqBatch
 	PutRes
@@ -39,6 +42,38 @@ var _ grpc.ClientConn
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+
+type InfoReq struct {
+}
+
+func (m *InfoReq) Reset()         { *m = InfoReq{} }
+func (m *InfoReq) String() string { return proto.CompactTextString(m) }
+func (*InfoReq) ProtoMessage()    {}
+
+type InfoRes struct {
+	Databases []*DBInfo `protobuf:"bytes,1,rep,name=databases" json:"databases,omitempty"`
+}
+
+func (m *InfoRes) Reset()         { *m = InfoRes{} }
+func (m *InfoRes) String() string { return proto.CompactTextString(m) }
+func (*InfoRes) ProtoMessage()    {}
+
+func (m *InfoRes) GetDatabases() []*DBInfo {
+	if m != nil {
+		return m.Databases
+	}
+	return nil
+}
+
+type DBInfo struct {
+	Name       string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	IndexDepth int64  `protobuf:"varint,2,opt,name=indexDepth" json:"indexDepth,omitempty"`
+	Resolution int64  `protobuf:"varint,3,opt,name=resolution" json:"resolution,omitempty"`
+}
+
+func (m *DBInfo) Reset()         { *m = DBInfo{} }
+func (m *DBInfo) String() string { return proto.CompactTextString(m) }
+func (*DBInfo) ProtoMessage()    {}
 
 type PutReq struct {
 	Database  string   `protobuf:"bytes,1,opt,name=database" json:"database,omitempty"`

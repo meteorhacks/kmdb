@@ -10,6 +10,7 @@ import (
 
 type Client interface {
 	Connect() (err error)
+	Info(req *InfoReq) (r *InfoRes, err error)
 	Put(req *PutReqBatch) (r *PutResBatch, err error)
 	Inc(req *IncReqBatch) (r *IncResBatch, err error)
 	Get(req *GetReqBatch) (r *GetResBatch, err error)
@@ -27,6 +28,26 @@ func NewClient(addr string) (c Client) {
 
 func (c *client) Connect() (err error) {
 	return c.cli.Connect()
+}
+
+func (c *client) Info(req *InfoReq) (r *InfoRes, err error) {
+	pld, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := c.cli.Call("info", pld)
+	if err != nil {
+		return nil, err
+	}
+
+	r = &InfoRes{}
+	err = proto.Unmarshal(out, r)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
 }
 
 func (c *client) Put(req *PutReqBatch) (r *PutResBatch, err error) {
