@@ -100,6 +100,7 @@ func (s *server) Info(req []byte) (res []byte, err error) {
 
 	res, err = proto.Marshal(r)
 	if err != nil {
+		log.Printf("ERROR: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -121,6 +122,7 @@ func (s *server) Put(req []byte) (res []byte, err error) {
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.put(batch.Batch[i])
 		if err != nil && batchError == nil {
+			log.Printf("ERROR: %s\n", err.Error())
 			batchError = ErrBatchError
 		}
 	}
@@ -131,6 +133,7 @@ func (s *server) Put(req []byte) (res []byte, err error) {
 
 	res, err = proto.Marshal(r)
 	if err != nil {
+		log.Printf("ERROR: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -152,6 +155,7 @@ func (s *server) Inc(req []byte) (res []byte, err error) {
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.inc(batch.Batch[i])
 		if err != nil && batchError == nil {
+			log.Printf("ERROR: %s\n", err.Error())
 			batchError = ErrBatchError
 		}
 	}
@@ -162,6 +166,7 @@ func (s *server) Inc(req []byte) (res []byte, err error) {
 
 	res, err = proto.Marshal(r)
 	if err != nil {
+		log.Printf("ERROR: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -183,6 +188,7 @@ func (s *server) Get(req []byte) (res []byte, err error) {
 	for i := 0; i < n; i++ {
 		r.Batch[i], err = s.get(batch.Batch[i])
 		if err != nil && batchError == nil {
+			log.Printf("ERROR: %s\n", err.Error())
 			batchError = ErrBatchError
 		}
 	}
@@ -193,6 +199,7 @@ func (s *server) Get(req []byte) (res []byte, err error) {
 
 	res, err = proto.Marshal(r)
 	if err != nil {
+		log.Printf("ERROR: %s\n", err.Error())
 		return nil, err
 	}
 
